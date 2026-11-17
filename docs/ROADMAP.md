@@ -112,7 +112,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] macOS x86-64 + ARM64: packaging, file integration, signing/notarization preparation.
 - [ ] Android ARM64: Rust native library, storage access, foreground/background download lifecycle and secure storage.
 - [ ] iOS ARM64: Rust framework, background execution constraints, document access and Keychain.
-- [ ] Complete Windows x86-64 and Android ARM64 smoke builds through CI; resolve any platform runner/toolchain failures.
+- [x] Complete Windows x86-64 and Android ARM64 smoke builds through CI; both smoke-build jobs pass on the current migration branch.
 - [ ] Add Linux x86-64, macOS x86-64/ARM64 and iOS ARM64 packaging/build jobs.
 
 **Exit criteria**
@@ -168,16 +168,16 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 |---|---|
 | Reference repository audit | Initial tree and core paths inspected |
 | GUI inventory | Initial shell and key screens documented; exhaustive inventory pending |
-| Site navigation/parsing | Rust URL scanner and XML parser implemented with synthetic tests; CI validation pending |
-| Host extraction | 16 resolver implementations transcribed into Rust; synthetic fixtures added; CI validation pending |
+| Site navigation/parsing | Rust URL scanner and XML parser implemented with synthetic tests; Rust CI checks pass |
+| Host extraction | 16 initial resolver paths transcribed into Rust; synthetic fixtures added; authorized live-host verification pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
 | Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
 | Persistence | Posts/Threads metadata persists in local preferences; SQLite/Liquibase migration and task history pending |
 | Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
-| Rust engine | Workspace, scanner, output helpers, host resolvers, XML parser, FFI and proxy client builder authored; CI verification and queue/persistence pending |
-| Flutter UI | Posts/Threads extraction records and basic list management implemented; parity and full lifecycle controls pending |
-| Platform builds | Not started |
-| CI and packaging | Target matrix defined; implementation pending |
+| Rust engine | Workspace, scanner, output helpers, initial host resolvers, XML parser, FFI and proxy-aware queue pipeline implemented; Rust CI checks pass; SQLite persistence pending |
+| Flutter UI | Posts/Threads extraction records and basic list management implemented; Flutter analysis and widget tests pass; full reference parity pending |
+| Platform builds | Windows x86-64 and Android ARM64 CI smoke builds pass; artifact inspection and live workflow acceptance pending |
+| CI and packaging | Rust, Flutter and Windows/Android smoke-build workflows pass; remaining platform matrix and release packaging pending |
 
 ## Architecture decisions
 
