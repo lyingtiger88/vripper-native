@@ -305,7 +305,7 @@ pub unsafe extern "C" fn vripper_coordinator_scan_and_queue_json(
 
 /// Return the current queue snapshot as JSON.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vripper_coordinator_snapshot_json(handle: u64) -> *mut c_char {
+pub extern "C" fn vripper_coordinator_snapshot_json(handle: u64) -> *mut c_char {
     let result = catch_unwind(AssertUnwindSafe(|| {
         let coordinator = match coordinator_for(handle) {
             Ok(value) => value,
@@ -324,7 +324,7 @@ pub unsafe extern "C" fn vripper_coordinator_snapshot_json(handle: u64) -> *mut 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vripper_coordinator_stop_json(
+pub extern "C" fn vripper_coordinator_stop_json(
     handle: u64,
     job_id: u64,
 ) -> *mut c_char {
@@ -345,7 +345,7 @@ pub unsafe extern "C" fn vripper_coordinator_stop_json(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vripper_coordinator_stop_all_json(handle: u64) -> *mut c_char {
+pub extern "C" fn vripper_coordinator_stop_all_json(handle: u64) -> *mut c_char {
     let result = catch_unwind(AssertUnwindSafe(|| {
         let coordinator = match coordinator_for(handle) {
             Ok(value) => value,
@@ -362,6 +362,10 @@ pub unsafe extern "C" fn vripper_coordinator_stop_all_json(handle: u64) -> *mut 
     }
 }
 
+/// Move a pending queue job.
+///
+/// # Safety
+/// movement must point to a valid NUL-terminated UTF-8 string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn vripper_coordinator_move_json(
     handle: u64,
@@ -396,7 +400,7 @@ pub unsafe extern "C" fn vripper_coordinator_move_json(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vripper_coordinator_clear_finished_json(handle: u64) -> *mut c_char {
+pub extern "C" fn vripper_coordinator_clear_finished_json(handle: u64) -> *mut c_char {
     let result = catch_unwind(AssertUnwindSafe(|| {
         let coordinator = match coordinator_for(handle) {
             Ok(value) => value,
@@ -418,7 +422,7 @@ pub unsafe extern "C" fn vripper_coordinator_clear_finished_json(handle: u64) ->
 /// # Safety
 /// No pointers are accepted by this function.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vripper_coordinator_poll_event_json(
+pub extern "C" fn vripper_coordinator_poll_event_json(
     handle: u64,
     timeout_ms: u64,
 ) -> *mut c_char {
@@ -451,7 +455,7 @@ pub unsafe extern "C" fn vripper_coordinator_poll_event_json(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn vripper_coordinator_destroy_json(handle: u64) -> *mut c_char {
+pub extern "C" fn vripper_coordinator_destroy_json(handle: u64) -> *mut c_char {
     let result = catch_unwind(AssertUnwindSafe(|| {
         let coordinator = coordinators()
             .lock()
