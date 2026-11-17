@@ -35,6 +35,7 @@ pub struct CompletedImage {
     pub complete: bool,
 }
 
+#[derive(Clone)]
 pub struct HostPipeline {
     transport: HttpTransport,
     temp_directory: PathBuf,
