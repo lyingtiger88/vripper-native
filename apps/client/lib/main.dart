@@ -214,6 +214,7 @@ class _HomePageState extends State<HomePage> {
         'download_path': downloads.path,
         'temp_path': temporary.path,
         'queue_database_path': _nativeCatalogPath,
+        'legacy_database_path': _databasePath,
         'forum_subdirectory': false,
         'thread_sublocation': false,
         'append_post_id': false,
