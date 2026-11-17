@@ -845,6 +845,43 @@ mod tests {
         queue.shutdown().await.unwrap();
     }
 
+
+    #[tokio::test]
+    async fn cleared_legacy_history_is_not_reimported_on_restart() {
+        let temp = tempfile::tempdir().unwrap();
+        let queue_path = temp.path().join("queue.db");
+        let entry = crate::database::LegacyQueueEntry {
+            image_id: 9001,
+            post_id: 7001,
+            job: QueueJob {
+                id: 0,
+                host: HostId::DPicMe,
+                source_url: "https://dpic.me/legacy.jpg".into(),
+                thumbnail_url: String::new(),
+                image_index_zero_based: 0,
+                force_order: false,
+                destination_directory: temp.path().join("downloads"),
+            },
+            status: QueueStatus::Finished,
+            filename: Some("legacy.jpg".into()),
+            bytes_written: 4,
+            expected_bytes: Some(4),
+            destination_path: Some(temp.path().join("downloads/legacy.jpg").to_string_lossy().into_owned()),
+        };
+        let make_pipeline = || HostPipeline::new(
+            &NetworkConfig::default(), None, None, temp.path(), false,
+        ).unwrap();
+        let queue = QueueManager::persistent(make_pipeline(), QueueSettings::default(), &queue_path).unwrap();
+        assert_eq!(queue.import_legacy(vec![entry.clone()]).await.unwrap(), 1);
+        queue.clear_finished().await.unwrap();
+        queue.shutdown().await.unwrap();
+
+        let restored = QueueManager::persistent(make_pipeline(), QueueSettings::default(), &queue_path).unwrap();
+        assert_eq!(restored.import_legacy(vec![entry]).await.unwrap(), 0);
+        assert_eq!(restored.snapshot().await.unwrap().items.len(), 0);
+        restored.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn new_queue_starts_empty() {
         let temp = tempfile::tempdir().unwrap();
