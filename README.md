@@ -129,6 +129,7 @@ Shipped applications must not require a separately installed Java Runtime or JVM
 - [Engine behavior trace](docs/ENGINE_TRACE.md)
 - [Host compatibility matrix](docs/HOST_COMPATIBILITY_MATRIX.md)
 - [Compatibility specification](docs/COMPATIBILITY_SPEC.md)
+- [Remote client/server protocol audit](docs/REMOTE_API_AUDIT.md)
 - [Host resolver audit](docs/HOST_RESOLVER_AUDIT.md)
 - [Settings inventory](docs/SETTINGS_INVENTORY.md)
 - [Persistence schema audit](docs/PERSISTENCE_SCHEMA_AUDIT.md)
