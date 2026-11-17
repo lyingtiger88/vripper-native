@@ -552,13 +552,102 @@ class ThreadsTab extends StatelessWidget {
 }
 
 class TasksTab extends StatelessWidget {
-  const TasksTab({super.key});
+  const TasksTab({super.key, required this.snapshot, required this.onClear});
+  final Map<String, dynamic> snapshot;
+  final VoidCallback onClear;
+
   @override
-  Widget build(BuildContext context) => const _EmptyTable(
-        title: 'No tasks yet',
-        columns: [],
-        action: 'Clear tasks',
+  Widget build(BuildContext context) {
+    final items = (snapshot['items'] as List? ?? const []).whereType<Map>().toList();
+    if (items.isEmpty) {
+      return Column(
+        children: [
+          Container(
+            height: 42,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: TextButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.delete_outline, size: 16),
+              label: const Text('Clear finished tasks'),
+            ),
+          ),
+          const Expanded(child: Center(child: Text('No tasks yet', style: TextStyle(color: _muted)))),
+        ],
       );
+    }
+    return Column(
+      children: [
+        Container(
+          height: 42,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: TextButton.icon(
+            onPressed: onClear,
+            icon: const Icon(Icons.delete_outline, size: 16),
+            label: const Text('Clear finished tasks'),
+          ),
+        ),
+        const Divider(height: 1),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              SizedBox(width: 55, child: Text('ID', style: TextStyle(fontSize: 11, color: _muted))),
+              SizedBox(width: 115, child: Text('Host', style: TextStyle(fontSize: 11, color: _muted))),
+              SizedBox(width: 100, child: Text('Status', style: TextStyle(fontSize: 11, color: _muted))),
+              Expanded(child: Text('Filename / Destination', style: TextStyle(fontSize: 11, color: _muted))),
+              SizedBox(width: 120, child: Text('Bytes', style: TextStyle(fontSize: 11, color: _muted))),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.separated(
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final id = item['id'] ?? '';
+              final host = item['host'] ?? '';
+              final status = item['status'] ?? '';
+              final filename = item['filename'] ?? 'Resolving image…';
+              final destination = item['destination_path'] ?? '';
+              final bytes = item['bytes_written'] ?? 0;
+              final expected = item['expected_bytes'];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                child: Row(
+                  children: [
+                    SizedBox(width: 55, child: Text(id.toString(), style: const TextStyle(fontSize: 11))),
+                    SizedBox(width: 115, child: Text(host.toString(), style: const TextStyle(fontSize: 11))),
+                    SizedBox(width: 100, child: Text(status.toString(), style: const TextStyle(fontSize: 11))),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(filename.toString(), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                          if (destination.toString().isNotEmpty)
+                            Text(destination.toString(), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: _muted)),
+                          if (item['error'] != null)
+                            Text(item['error'].toString(), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 120,
+                      child: Text(expected == null ? bytes.toString() : '$bytes / $expected',
+                          style: const TextStyle(fontSize: 10, color: _muted)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class LogsTab extends StatelessWidget {
@@ -619,12 +708,14 @@ class _StatusStrip extends StatelessWidget {
     required this.session,
     required this.engineLoaded,
     required this.engineError,
+    required this.queueSnapshot,
     required this.onChangeSession,
   });
 
   final String session;
   final bool engineLoaded;
   final String? engineError;
+  final Map<String, dynamic> queueSnapshot;
   final VoidCallback onChangeSession;
 
   @override
@@ -644,6 +735,13 @@ class _StatusStrip extends StatelessWidget {
             const SizedBox(width: 14),
             Text(
               engineLoaded ? 'Engine ' + NativeEngine.instance.version : 'Native engine not packaged',
+              style: const TextStyle(fontSize: 11, color: _muted),
+            ),
+            const SizedBox(width: 14),
+            Text(
+              'Running: ' + (queueSnapshot['running']?.toString() ?? '0') +
+                  '  Pending: ' + (queueSnapshot['pending']?.toString() ?? '0') +
+                  '  Done: ' + (queueSnapshot['completed']?.toString() ?? '0'),
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
             if (engineError != null) ...[
