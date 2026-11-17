@@ -741,12 +741,13 @@ mod tests {
 
         let temp = tempfile::tempdir().unwrap();
         let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let queue_path = temp.path().join("queue.db");
         let pipeline = HostPipeline::from_transport(
             crate::transport::HttpTransport::from_client(client),
             temp.path().join("temp"),
             false,
         );
-        let queue = QueueManager::new(pipeline, QueueSettings::default());
+        let queue = QueueManager::persistent(pipeline, QueueSettings::default(), &queue_path).unwrap();
         let id = queue
             .add(QueueJob {
                 id: 0,
@@ -779,6 +780,19 @@ mod tests {
         assert_eq!(item.status, QueueStatus::Finished);
         assert_eq!(item.filename.as_deref(), Some("queued.JPG"));
         queue.shutdown().await.unwrap();
+
+        let restored_pipeline = HostPipeline::from_transport(
+            crate::transport::HttpTransport::from_client(reqwest::Client::builder().no_proxy().build().unwrap()),
+            temp.path().join("temp"),
+            false,
+        );
+        let restored = QueueManager::persistent(restored_pipeline, QueueSettings::default(), &queue_path).unwrap();
+        let restored_snapshot = restored.snapshot().await.unwrap();
+        let restored_item = restored_snapshot.items.iter().find(|item| item.id == id).unwrap();
+        assert_eq!(restored_item.status, QueueStatus::Finished);
+        assert_eq!(restored_item.filename.as_deref(), Some("queued.JPG"));
+        assert_eq!(restored_item.destination_path, item.destination_path);
+        restored.shutdown().await.unwrap();
     }
 
     #[tokio::test]
