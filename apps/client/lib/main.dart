@@ -169,23 +169,49 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => const AddLinksDialog(),
     );
     if (!mounted || text == null || text.trim().isEmpty) return;
+    final handle = _coordinatorHandle;
+    if (handle == null) {
+      _showMessage('Native download engine is not ready: ${_coordinatorError ?? "initializing"}');
+      return;
+    }
     try {
-      final result = NativeEngine.instance.scanLinks(
+      final result = await NativeEngine.instance.scanAndQueueInBackground(
+        handle,
         text,
         const ['https://vipergirls.to', 'https://www.vipergirls.to'],
       );
-      final threads = (result['threads'] as List? ?? []).length;
-      final posts = (result['posts'] as List? ?? []).length;
-      final invalid = (result['invalid'] as List? ?? []).length;
-      setState(() => _scanSummary =
-          'Scanned: $threads thread(s), $posts post(s), $invalid invalid link(s).');
+      if (!mounted) return;
+      final threads = result['thread_lookups'] ?? 0;
+      final posts = result['posts_discovered'] ?? 0;
+      final images = result['images_queued'] ?? 0;
+      final invalid = (result['invalid_links'] as List? ?? []).length;
+      final errors = (result['errors'] as List? ?? []).length;
+      setState(() {
+        _scanSummary = 'Lookups: $threads thread(s); $posts post(s); $images image(s) queued; '
+            '$invalid invalid link(s); $errors error(s).';
+        _queueSnapshot = NativeEngine.instance.queueSnapshot(handle);
+      });
     } catch (error) {
-      _showMessage('Native scan unavailable: $error');
+      _showMessage('Link scan or extraction failed: $error');
     }
   }
 
   Future<void> _openSettings() async {
-    await showDialog<void>(context: context, builder: (_) => const SettingsDialog());
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => SettingsDialog(initialNetworkSettings: _networkSettings),
+    );
+    if (!mounted || result == null) return;
+    final oldHandle = _coordinatorHandle;
+    setState(() {
+      _networkSettings = result;
+      _coordinatorHandle = null;
+      _queueSnapshot = const {};
+    });
+    if (oldHandle != null) {
+      NativeEngine.instance.destroyCoordinator(oldHandle);
+    }
+    await _initializeCoordinator();
   }
 
   Future<void> _changeSession() async {
@@ -224,9 +250,9 @@ class _HomePageState extends State<HomePage> {
               _ActionToolbar(
                 search: _search,
                 onAddLinks: _addLinks,
-                onStart: () => _showMessage('Download queue is not connected yet.'),
-                onStop: () => _showMessage('Download queue is not connected yet.'),
-                onClear: () => _showMessage('No completed posts to clear.'),
+                onStart: () => _showMessage('Downloads start automatically when links are added.'),
+                onStop: _stopAllDownloads,
+                onClear: _clearFinished,
                 onSettings: _openSettings,
               ),
             Container(
@@ -254,7 +280,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   PostsTab(search: _search, summary: _scanSummary, onAddLinks: _addLinks),
                   const ThreadsTab(),
-                  const TasksTab(),
+                  TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished),
                   const LogsTab(),
                 ],
               ),
@@ -263,7 +289,8 @@ class _HomePageState extends State<HomePage> {
               _StatusStrip(
                 session: _session,
                 engineLoaded: NativeEngine.instance.isLoaded,
-                engineError: NativeEngine.instance.loadError,
+                engineError: _coordinatorError ?? NativeEngine.instance.loadError,
+                queueSnapshot: _queueSnapshot,
                 onChangeSession: _changeSession,
               ),
           ],
