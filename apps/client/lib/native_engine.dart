@@ -10,6 +10,10 @@ typedef _AbiNative = Uint32 Function();
 typedef _AbiDart = int Function();
 typedef _ScanNative = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
 typedef _ScanDart = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
+typedef _ParseNative = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
+typedef _ParseDart = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
+typedef _ResolveNative = Pointer<Int8> Function(Uint8, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, Uint8);
+typedef _ResolveDart = Pointer<Int8> Function(int, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, int);
 typedef _FreeNative = Void Function(Pointer<Int8>);
 typedef _FreeDart = void Function(Pointer<Int8>);
 
@@ -22,6 +26,8 @@ class NativeEngine {
   _VersionDart? _version;
   _AbiDart? _abiVersion;
   _ScanDart? _scanLinks;
+  _ParseDart? _parseThread;
+  _ResolveDart? _resolveHost;
   _FreeDart? _freeString;
   String? loadError;
 
@@ -35,6 +41,8 @@ class NativeEngine {
       _version = library.lookupFunction<_VersionNative, _VersionDart>('vripper_engine_version');
       _abiVersion = library.lookupFunction<_AbiNative, _AbiDart>('vripper_abi_version');
       _scanLinks = library.lookupFunction<_ScanNative, _ScanDart>('vripper_scan_links_json');
+      _parseThread = library.lookupFunction<_ParseNative, _ParseDart>('vripper_parse_thread_response_json');
+      _resolveHost = library.lookupFunction<_ResolveNative, _ResolveDart>('vripper_resolve_host_html_json');
       _freeString = library.lookupFunction<_FreeNative, _FreeDart>('vripper_string_free');
       if (_abiVersion!() != 1) throw StateError('Unsupported native engine ABI version');
     } catch (error) {
@@ -81,4 +89,65 @@ class NativeEngine {
       if (output != nullptr) _freeString!(output);
     }
   }
+
+  Map<String, dynamic> parseThreadResponse(String xml, String siteProxy) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final xmlPointer = xml.toNativeUtf8().cast<Int8>();
+    final proxyPointer = siteProxy.toNativeUtf8().cast<Int8>();
+    Pointer<Int8> output = nullptr;
+    try {
+      output = _parseThread!(xmlPointer, proxyPointer);
+      return _decodeObject(output);
+    } finally {
+      malloc.free(xmlPointer);
+      malloc.free(proxyPointer);
+      if (output != nullptr) _freeString!(output);
+    }
+  }
+
+  Map<String, dynamic> resolveHostHtml({
+    required int hostId,
+    required String sourceUrl,
+    required String thumbnailUrl,
+    required String html,
+    String? followUpHtml,
+    bool fetchOriginalImxFilename = false,
+  }) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final sourcePointer = sourceUrl.toNativeUtf8().cast<Int8>();
+    final thumbPointer = thumbnailUrl.toNativeUtf8().cast<Int8>();
+    final htmlPointer = html.toNativeUtf8().cast<Int8>();
+    final followUpPointer = followUpHtml?.toNativeUtf8().cast<Int8>() ?? nullptr;
+    Pointer<Int8> output = nullptr;
+    try {
+      output = _resolveHost!(
+        hostId,
+        sourcePointer,
+        thumbPointer,
+        htmlPointer,
+        followUpPointer,
+        fetchOriginalImxFilename ? 1 : 0,
+      );
+      return _decodeObject(output);
+    } finally {
+      malloc.free(sourcePointer);
+      malloc.free(thumbPointer);
+      malloc.free(htmlPointer);
+      if (followUpPointer != nullptr) malloc.free(followUpPointer);
+      if (output != nullptr) _freeString!(output);
+    }
+  }
+
+  Map<String, dynamic> _decodeObject(Pointer<Int8> output) {
+    if (output == nullptr) throw StateError('Native engine returned a null result');
+    final decoded = jsonDecode(output.cast<Utf8>().toDartString());
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Unexpected native engine response');
+    }
+    if (decoded.containsKey('error')) throw StateError(decoded['error'].toString());
+    return decoded;
+  }
+
 }
