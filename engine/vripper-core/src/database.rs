@@ -272,7 +272,7 @@ mod tests {
              INSERT INTO POST VALUES (7, 700, 'fixture post', 'sensitive-token');
              INSERT INTO IMAGE VALUES (11, 7, 0, 'FINISHED');
              INSERT INTO THREAD VALUES (3, 300, 'fixture thread', 'https://example.invalid/threads/300');
-             INSERT INTO METADATA VALUES (7, '{"poster":"fixture"}');
+             INSERT INTO METADATA VALUES (7, '{\"poster\":\"fixture\"}');
              INSERT INTO TASK VALUES (1, 'fixture task', 'DONE');
              INSERT INTO POST_ACTION VALUES (1, 7, 'REVIEW', 'DONE');
              INSERT INTO DATABASECHANGELOG VALUES ('001', 'author', 'changelog.xml', 1);"
