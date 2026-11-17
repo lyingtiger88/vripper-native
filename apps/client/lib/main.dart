@@ -213,6 +213,7 @@ class _HomePageState extends State<HomePage> {
         'queue_settings': {'max_global_concurrent': 0, 'max_per_host_concurrent': 2},
         'download_path': downloads.path,
         'temp_path': temporary.path,
+        'queue_database_path': _nativeCatalogPath,
         'forum_subdirectory': false,
         'thread_sublocation': false,
         'append_post_id': false,
@@ -227,6 +228,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _coordinatorHandle = handle;
         _coordinatorError = null;
+        _queueSnapshot = NativeEngine.instance.queueSnapshot(handle);
       });
       _pollQueueEvents(handle);
     } catch (error) {
@@ -260,6 +262,32 @@ class _HomePageState extends State<HomePage> {
       setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
     } catch (error) {
       _showMessage('Could not stop downloads: $error');
+    }
+  }
+
+  Future<void> _retryJob(int jobId) async {
+    final handle = _coordinatorHandle;
+    if (handle == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Retry download?'),
+        content: const Text('The image will be downloaded again from the beginning. An existing file with the same name may be replaced.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Retry')),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || _coordinatorHandle != handle) return;
+    try {
+      final result = NativeEngine.instance.retryJob(handle, jobId);
+      if (mounted) {
+        setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
+        if (result['retried'] != true) _showMessage('Task is not eligible for retry.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('Retry failed: $error');
     }
   }
 
@@ -569,7 +597,7 @@ class _HomePageState extends State<HomePage> {
                     onCopyUrl: _copyPostUrl,
                   ),
                   ThreadsTab(threads: _threads, onRemove: _removeThread, onClear: _clearThreads),
-                  TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished, onStop: _stopJob, onMove: _moveJob),
+                  TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished, onStop: _stopJob, onMove: _moveJob, onRetry: _retryJob),
                   const LogsTab(),
                 ],
               ),
@@ -910,10 +938,11 @@ class ThreadsTab extends StatelessWidget {
 }
 
 class TasksTab extends StatelessWidget {
-  const TasksTab({super.key, required this.snapshot, required this.onClear, required this.onStop, required this.onMove});
+  const TasksTab({super.key, required this.snapshot, required this.onClear, required this.onStop, required this.onMove, required this.onRetry});
   final Map<String, dynamic> snapshot;
   final VoidCallback onClear;
   final ValueChanged<int> onStop;
+  final ValueChanged<int> onRetry;
   final void Function(int, String) onMove;
 
   @override
@@ -1013,13 +1042,15 @@ class TasksTab extends StatelessWidget {
                             icon: const Icon(Icons.arrow_upward),
                           ),
                           IconButton(
-                            tooltip: 'Stop task',
+                            tooltip: status == 'STOPPED' || status == 'ERROR' ? 'Retry task' : 'Stop task',
                             visualDensity: VisualDensity.compact,
                             iconSize: 16,
-                            onPressed: status.toString() == 'PENDING' || status.toString() == 'RUNNING'
-                                ? () => onStop(id as int)
-                                : null,
-                            icon: const Icon(Icons.stop_circle_outlined),
+                            onPressed: status == 'STOPPED' || status == 'ERROR'
+                                ? () => onRetry(id as int)
+                                : status == 'PENDING' || status == 'RUNNING'
+                                    ? () => onStop(id as int)
+                                    : null,
+                            icon: Icon(status == 'STOPPED' || status == 'ERROR' ? Icons.refresh : Icons.stop_circle_outlined),
                           ),
                         ],
                       ),
