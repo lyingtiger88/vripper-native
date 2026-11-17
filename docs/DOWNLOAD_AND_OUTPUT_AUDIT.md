@@ -46,7 +46,7 @@ Reference sources: `DownloadService.kt`, `QueueManager.kt`, `ImageDownloadRunnab
 - If `forumSubDirectory` is enabled, append `sanitize(forum)`.
 - If `threadSubLocation` is enabled, append thread title as-is in the inspected `calculateDownloadPath` method; unlike forum name it is not sanitized there. Verify downstream folder naming and platform behavior before porting.
 - Image destination is `post.downloadDirectory / post.folderName`.
-- `appendPostId` is a separate DownloadSettings option; trace its effect in post creation/folderName generation before implementing.
+- If `appendPostId` is enabled, post folderName is `sanitize(postTitle) + "_" + postId`; otherwise it is `sanitize(postTitle)`. This is applied in DataAccessService.buildPosts. Preserve the underscore and decimal external post ID exactly.
 - Rename operation creates sanitized new folder, moves known non-empty image filenames with ATOMIC_MOVE, and deletes old folder only if empty.
 
 ## Sanitization and extension rules
