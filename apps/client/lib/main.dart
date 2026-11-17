@@ -1097,6 +1097,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
             ],
             onChanged: (value) => setState(() => _proxyMode = value ?? 'Disabled'),
           ),
+          if (_proxyMode == 'System') ...[
+            const SizedBox(height: 10),
+            const Text(
+              'System mode currently reads HTTPS_PROXY / HTTP_PROXY / ALL_PROXY environment variables. Native OS proxy discovery is still pending; if none are configured, the connection fails rather than switching to direct mode.',
+              style: TextStyle(fontSize: 11, color: _muted),
+            ),
+          ],
           if (_proxyMode == 'Manual') ...[
             const SizedBox(height: 18),
             const Text('Manual proxy', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1122,7 +1129,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Proxy transport test will be enabled after the Rust network layer is integrated.')),
+                const SnackBar(content: Text('Connection test is not yet wired to the coordinator.')),
               ),
               icon: const Icon(Icons.network_check),
               label: const Text('Test connection'),
