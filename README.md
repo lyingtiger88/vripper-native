@@ -128,6 +128,10 @@ Shipped applications must not require a separately installed Java Runtime or JVM
 - [Engine behavior trace](docs/ENGINE_TRACE.md)
 - [Host compatibility matrix](docs/HOST_COMPATIBILITY_MATRIX.md)
 - [Compatibility specification](docs/COMPATIBILITY_SPEC.md)
+- [Host resolver audit](docs/HOST_RESOLVER_AUDIT.md)
+- [Settings inventory](docs/SETTINGS_INVENTORY.md)
+- [Download and output audit](docs/DOWNLOAD_AND_OUTPUT_AUDIT.md)
+- [Persistence schema audit](docs/PERSISTENCE_SCHEMA_AUDIT.md)
 - [Network and proxy settings](docs/NETWORK_SETTINGS.md)
 - [Architecture decision record](docs/ADR-0001-rust-flutter.md)
 
@@ -137,4 +141,4 @@ The compatibility reference is [dev-claw/vripper-project](https://github.com/dev
 
 ## Current milestone
 
-**Phase 0 is underway.** Initial source-level reverse engineering and project specifications are documented. The next gate is completing the behavioral audit and compatibility fixtures before production implementation begins.
+**Phase 0 is underway.** Source-level audits now cover all 16 registered host resolvers, settings sections, download lifecycle, output naming, and the logical SQLite schema. Runtime fixtures and reference UI captures remain outstanding before production parity work can be accepted.
