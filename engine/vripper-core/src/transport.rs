@@ -115,7 +115,12 @@ impl HttpTransport {
         };
         let mut builder = self.apply_context(builder, &request.url, &context);
         if request.method == FollowUpMethod::Post && !request.form_fields.is_empty() {
-            builder = builder.form(&request.form_fields);
+            let fields = request
+                .form_fields
+                .iter()
+                .map(|(key, value)| (key.as_str(), value.as_str()))
+                .collect::<Vec<_>>();
+            builder = builder.form(&fields);
         }
         let response = builder
             .send()
@@ -176,7 +181,7 @@ impl HttpTransport {
         let path = temporary
             .into_temp_path()
             .keep()
-            .map_err(|error| TransportError::File(error.error.to_string()))?;
+            .map_err(|error| TransportError::File(error.to_string()))?;
 
         Ok(DownloadedTempFile {
             path,
@@ -225,8 +230,9 @@ fn cookie_header_for_url(url: &str, cookies: &[CookieMutation]) -> Option<String
         .iter()
         .filter(|cookie| {
             let domain = cookie.domain.trim_start_matches('.');
-            (host == domain || host.ends_with(&format!(".{domain}")))
-                && path.starts_with(&cookie.path)
+            let path_matches = path == cookie.path
+                || path.starts_with(&format!("{}/", cookie.path.trim_end_matches('/')));
+            (host == domain || host.ends_with(&format!(".{domain}"))) && path_matches
         })
         .map(|cookie| format!("{}={}", cookie.name, cookie.value))
         .collect::<Vec<_>>();
