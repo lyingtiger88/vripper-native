@@ -564,6 +564,34 @@ pub unsafe extern "C" fn vripper_database_catalog_json(path: *const c_char) -> *
     }
 }
 
+/// Load or transactionally replace a native catalog. Null data means read.
+///
+/// # Safety
+/// path and non-null data must be valid NUL-terminated UTF-8 strings.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_native_catalog_json(path: *const c_char, data: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let path = match read_utf8(path, "catalog_path") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let data = if data.is_null() { None } else {
+            match read_utf8(data, "catalog_data") {
+                Ok(value) => Some(value),
+                Err(error) => return json_error(&error),
+            }
+        };
+        match crate::database::native_catalog(std::path::Path::new(&path), data.as_deref()) {
+            Ok(value) => serde_json::json!({"catalog": value}).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native catalog panicked")),
+    }
+}
+
 /// Release a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety
