@@ -201,6 +201,28 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _stopJob(int jobId) async {
+    final handle = _coordinatorHandle;
+    if (handle == null) return;
+    try {
+      NativeEngine.instance.stopJob(handle, jobId);
+      if (mounted) setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
+    } catch (error) {
+      _showMessage('Could not stop task $jobId: $error');
+    }
+  }
+
+  Future<void> _moveJob(int jobId, String direction) async {
+    final handle = _coordinatorHandle;
+    if (handle == null) return;
+    try {
+      NativeEngine.instance.moveJob(handle, jobId, direction);
+      if (mounted) setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
+    } catch (error) {
+      _showMessage('Could not reorder task $jobId: $error');
+    }
+  }
+
   Future<void> _clearFinished() async {
     final handle = _coordinatorHandle;
     if (handle == null) return;
@@ -329,7 +351,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   PostsTab(search: _search, summary: _scanSummary, onAddLinks: _addLinks),
                   const ThreadsTab(),
-                  TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished),
+                  TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished, onStop: _stopJob, onMove: _moveJob),
                   const LogsTab(),
                 ],
               ),
@@ -601,9 +623,11 @@ class ThreadsTab extends StatelessWidget {
 }
 
 class TasksTab extends StatelessWidget {
-  const TasksTab({super.key, required this.snapshot, required this.onClear});
+  const TasksTab({super.key, required this.snapshot, required this.onClear, required this.onStop, required this.onMove});
   final Map<String, dynamic> snapshot;
   final VoidCallback onClear;
+  final ValueChanged<int> onStop;
+  final void Function(int, String) onMove;
 
   @override
   Widget build(BuildContext context) {
@@ -647,6 +671,7 @@ class TasksTab extends StatelessWidget {
               SizedBox(width: 100, child: Text('Status', style: TextStyle(fontSize: 11, color: _muted))),
               Expanded(child: Text('Filename / Destination', style: TextStyle(fontSize: 11, color: _muted))),
               SizedBox(width: 120, child: Text('Bytes', style: TextStyle(fontSize: 11, color: _muted))),
+              SizedBox(width: 92, child: Text('Actions', style: TextStyle(fontSize: 11, color: _muted))),
             ],
           ),
         ),
@@ -687,6 +712,30 @@ class TasksTab extends StatelessWidget {
                       width: 120,
                       child: Text(expected == null ? bytes.toString() : '$bytes / $expected',
                           style: const TextStyle(fontSize: 10, color: _muted)),
+                    ),
+                    SizedBox(
+                      width: 92,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            tooltip: 'Move up',
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 16,
+                            onPressed: status.toString() == 'PENDING' ? () => onMove(id as int, 'up') : null,
+                            icon: const Icon(Icons.arrow_upward),
+                          ),
+                          IconButton(
+                            tooltip: 'Stop task',
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 16,
+                            onPressed: status.toString() == 'PENDING' || status.toString() == 'RUNNING'
+                                ? () => onStop(id as int)
+                                : null,
+                            icon: const Icon(Icons.stop_circle_outlined),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
