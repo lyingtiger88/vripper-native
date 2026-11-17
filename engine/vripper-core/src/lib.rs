@@ -1,9 +1,9 @@
 //! VRipper Native compatibility engine.
 //!
-//! This first vertical slice captures deterministic behavior from the reference:
-//! link scanning, post folder naming, image filename normalization and output paths.
-//! Network access and live host resolution are deliberately not implemented until
-//! authorized fixtures and behavior tests are available.
+//! Native compatibility engine: deterministic parsing, host resolution, shared
+//! proxy-aware HTTP transport, streamed image downloads and bounded queue execution.
+//! Automated tests use synthetic fixtures and local mock servers; no live site
+//! scraping or access-control bypass is performed by the test suite.
 
 pub mod api;
 pub mod hosts;
@@ -13,6 +13,7 @@ pub mod pipeline;
 pub mod queue;
 pub mod viper_api;
 pub mod viper_auth;
+pub mod coordinator;
 pub mod ffi;
 
 use regex::Regex;
