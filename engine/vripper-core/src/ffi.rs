@@ -549,6 +549,65 @@ mod tests {
         unsafe { vripper_string_free(output) };
     }
 
+
+    #[test]
+    fn ffi_coordinator_lifecycle_scans_and_returns_queue_snapshot() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = serde_json::json!({
+            "network": {
+                "mode": "disabled",
+                "manual_proxy": null,
+                "bypass_hosts": []
+            },
+            "proxy_credentials": null,
+            "system_proxy": null,
+            "viper_host": "https://vipergirls.to",
+            "site_proxy": "https://vipergirls.to",
+            "viper_credentials": null,
+            "request_limit_per_second": 2,
+            "max_attempts": 3,
+            "connection_timeout_secs": 30,
+            "queue_settings": {
+                "max_global_concurrent": 0,
+                "max_per_host_concurrent": 2
+            },
+            "download_path": temp.path().join("downloads").to_string_lossy(),
+            "temp_path": temp.path().join("temp").to_string_lossy(),
+            "forum_subdirectory": false,
+            "thread_sublocation": false,
+            "append_post_id": false,
+            "force_order": false,
+            "fetch_original_imx_filename": false
+        });
+        let config = CString::new(config.to_string()).unwrap();
+        let created = unsafe { vripper_coordinator_create_json(config.as_ptr()) };
+        let created_json = unsafe { CStr::from_ptr(created) }.to_str().unwrap();
+        let created_value: serde_json::Value = serde_json::from_str(created_json).unwrap();
+        let handle = created_value["handle"].as_u64().unwrap();
+        unsafe { vripper_string_free(created) };
+
+        let input = CString::new("not a valid link").unwrap();
+        let bases = CString::new("[]").unwrap();
+        let scanned = unsafe {
+            vripper_coordinator_scan_and_queue_json(handle, input.as_ptr(), bases.as_ptr())
+        };
+        let scanned_json = unsafe { CStr::from_ptr(scanned) }.to_str().unwrap();
+        let scanned_value: serde_json::Value = serde_json::from_str(scanned_json).unwrap();
+        assert_eq!(scanned_value["invalid_links"].as_array().unwrap().len(), 1);
+        unsafe { vripper_string_free(scanned) };
+
+        let snapshot = vripper_coordinator_snapshot_json(handle);
+        let snapshot_json = unsafe { CStr::from_ptr(snapshot) }.to_str().unwrap();
+        let snapshot_value: serde_json::Value = serde_json::from_str(snapshot_json).unwrap();
+        assert_eq!(snapshot_value["remaining"], 0);
+        unsafe { vripper_string_free(snapshot) };
+
+        let destroyed = vripper_coordinator_destroy_json(handle);
+        let destroyed_json = unsafe { CStr::from_ptr(destroyed) }.to_str().unwrap();
+        assert!(destroyed_json.contains("true"));
+        unsafe { vripper_string_free(destroyed) };
+    }
+
     #[test]
     fn ffi_rejects_null_input_without_panicking() {
         let bases = CString::new("[]").unwrap();
