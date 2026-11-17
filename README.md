@@ -2,6 +2,20 @@
 
 Native-first, 64-bit cross-platform evolution of VRipper using **Rust** for the application engine and **Flutter** for the user interface.
 
+## Project roadmap
+
+**Current state:** The compatibility baseline is on `main`. Native implementation work is in [draft PR #1](https://github.com/lyingtiger88/vripper-native/pull/1) and is not yet merged.
+
+- [x] Define the Rust + Flutter migration architecture and compatibility requirements.
+- [ ] Review and merge the native application foundation.
+- [ ] Connect the Java-compatible SQLite database to the live native application.
+- [ ] Verify feature parity and migration using real Java database fixtures.
+- [ ] Complete Windows, Linux, macOS, Android and iOS acceptance.
+- [ ] Prepare a verified distributable release.
+
+See the [full project roadmap](docs/ROADMAP.md) for phases, checklists and current implementation boundaries.
+
+
 ## Non-negotiable compatibility requirement
 
 This project is a technology migration, not a product redesign. The reference application's user-visible behavior must be preserved:
