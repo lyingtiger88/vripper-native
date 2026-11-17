@@ -396,6 +396,21 @@ mod tests {
 
 
 
+
+    #[test]
+    fn inspection_rejects_core_tables_with_incomplete_columns() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("partial.db");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch("CREATE TABLE POST (ID INTEGER, POST_ID INTEGER); CREATE TABLE IMAGE (ID INTEGER, POST_ID_REF INTEGER); CREATE TABLE THREAD (ID INTEGER, THREAD_ID INTEGER);").unwrap();
+        drop(db);
+        let report = inspect_legacy_database(&path).unwrap();
+        assert!(!report.compatible);
+        assert!(report.missing_required_columns.contains(&"POST.POST_TITLE".to_string()));
+        assert!(report.missing_required_columns.contains(&"IMAGE.HOST".to_string()));
+        assert!(report.missing_required_columns.contains(&"THREAD.TITLE".to_string()));
+    }
+
     #[test]
     fn legacy_image_rows_map_to_native_jobs_without_changing_files_or_starting_downloads() {
         let temp = tempfile::tempdir().unwrap();
