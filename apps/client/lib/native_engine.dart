@@ -56,6 +56,7 @@ class NativeEngine {
   _PollDart? _pollEvent;
   _HandleDart? _destroyCoordinator;
   _DatabaseInspectDart? _databaseInspect;
+  _DatabaseInspectDart? _databaseCatalog;
   _DatabaseImportDart? _databaseImport;
   String? loadError;
 
@@ -82,6 +83,7 @@ class NativeEngine {
       _pollEvent = library.lookupFunction<_PollNative, _PollDart>('vripper_coordinator_poll_event_json');
       _destroyCoordinator = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_destroy_json');
       _databaseInspect = library.lookupFunction<_DatabaseInspectNative, _DatabaseInspectDart>('vripper_database_inspect_json');
+      _databaseCatalog = library.lookupFunction<_DatabaseInspectNative, _DatabaseInspectDart>('vripper_database_catalog_json');
       _databaseImport = library.lookupFunction<_DatabaseImportNative, _DatabaseImportDart>('vripper_database_import_json');
       if (_abiVersion!() != 1) throw StateError('Unsupported native engine ABI version');
     } catch (error) {
@@ -178,6 +180,20 @@ class NativeEngine {
       if (output != nullptr) _freeString!(output);
     }
   }
+
+  Map<String, dynamic> readLegacyCatalog(String path) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final pointer = path.toNativeUtf8().cast<Int8>();
+    try {
+      return _decodeOwnedObject(_databaseCatalog!(pointer));
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  Future<Map<String, dynamic>> readLegacyCatalogInBackground(String path) =>
+      Isolate.run(() => NativeEngine.instance.readLegacyCatalog(path));
 
   Map<String, dynamic> inspectLegacyDatabase(String path) {
     load();
