@@ -41,6 +41,7 @@ pub struct HostPipeline {
     transport: HttpTransport,
     temp_directory: PathBuf,
     fetch_original_imx_filename: bool,
+    site_cookies: Vec<crate::hosts::CookieMutation>,
 }
 
 impl HostPipeline {
@@ -55,6 +56,7 @@ impl HostPipeline {
             transport: HttpTransport::new(network, credentials, system_proxy)?,
             temp_directory: temp_directory.into(),
             fetch_original_imx_filename,
+            site_cookies: Vec::new(),
         })
     }
 
@@ -63,10 +65,25 @@ impl HostPipeline {
         temp_directory: impl Into<PathBuf>,
         fetch_original_imx_filename: bool,
     ) -> Self {
+        Self::from_transport_with_cookies(
+            transport,
+            temp_directory,
+            fetch_original_imx_filename,
+            Vec::new(),
+        )
+    }
+
+    pub fn from_transport_with_cookies(
+        transport: HttpTransport,
+        temp_directory: impl Into<PathBuf>,
+        fetch_original_imx_filename: bool,
+        site_cookies: Vec<crate::hosts::CookieMutation>,
+    ) -> Self {
         Self {
             transport,
             temp_directory: temp_directory.into(),
             fetch_original_imx_filename,
+            site_cookies,
         }
     }
 
@@ -87,7 +104,12 @@ impl HostPipeline {
                 .referer_override
                 .clone()
                 .or_else(|| Some(DEFAULT_REFERER.to_owned())),
-            cookies: resolved.cookies.clone(),
+            cookies: self
+                .site_cookies
+                .iter()
+                .cloned()
+                .chain(resolved.cookies.iter().cloned())
+                .collect(),
         };
         let temporary = self
             .transport
@@ -112,7 +134,7 @@ impl HostPipeline {
     ) -> Result<ResolvedImage, PipelineError> {
         let default_context = RequestContext {
             referer: Some(DEFAULT_REFERER.to_owned()),
-            cookies: Vec::new(),
+            cookies: self.site_cookies.clone(),
         };
 
         // Imx host ID 8 is a special case in the reference base Host implementation:
@@ -185,6 +207,7 @@ impl HostPipeline {
                 if follow_up_request.referer.is_none() {
                     follow_up_request.referer = Some(DEFAULT_REFERER.to_owned());
                 }
+                follow_up_request.cookies.extend(self.site_cookies.iter().cloned());
                 let follow_up_html = self.transport.execute_follow_up(&follow_up_request).await?;
                 let second = resolve_host_html(
                     host,
