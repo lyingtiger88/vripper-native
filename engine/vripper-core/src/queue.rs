@@ -385,7 +385,7 @@ impl QueueScheduler<'_> {
         workers: &mut JoinSet<(u64, Result<CompletedImage, PipelineError>)>,
         events: &broadcast::Sender<QueueEvent>,
     ) {
-        while running.len() < global_limit {
+        while running.len() < self.global_limit {
             let mut host_counts = HashMap::<HostId, usize>::new();
             for active in running.values() {
                 *host_counts.entry(active.host).or_default() += 1;
@@ -406,7 +406,7 @@ impl QueueScheduler<'_> {
             }
             let id = job.id;
             let host = job.host;
-            let worker_pipeline = pipeline.clone();
+            let worker_pipeline = self.pipeline.clone();
             let worker_job = job.clone();
             let abort = workers.spawn(async move {
                 let result = worker_pipeline
