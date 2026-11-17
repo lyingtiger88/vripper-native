@@ -3,7 +3,7 @@
 use crate::api::ParsedThread;
 use crate::hosts::CookieMutation;
 use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint};
-use crate::pipeline::{HostPipeline, PipelineError};
+use crate::pipeline::HostPipeline;
 use crate::queue::{QueueError, QueueJob, QueueManager, QueueMove, QueueSettings, QueueSnapshot};
 use crate::scan_links;
 use crate::transport::{HttpTransport, TransportError};
@@ -89,14 +89,15 @@ impl DownloadCoordinator {
             config.system_proxy.as_ref(),
         )?;
 
-        let click_cookies: Vec<CookieMutation> = if let Some(credentials) = &config.viper_credentials {
-            ViperAuthService::new(transport.clone())
-                .authenticate(&config.viper_host, credentials)
-                .await?
-                .click_cookies
-        } else {
-            Vec::new()
-        };
+        let (click_cookies, site_cookies): (Vec<CookieMutation>, Vec<CookieMutation>) =
+            if let Some(credentials) = &config.viper_credentials {
+                let session = ViperAuthService::new(transport.clone())
+                    .authenticate(&config.viper_host, credentials)
+                    .await?;
+                (session.click_cookies, session.site_cookies)
+            } else {
+                (Vec::new(), Vec::new())
+            };
 
         let api = ViperApi::new(
             transport.clone(),
@@ -106,10 +107,11 @@ impl DownloadCoordinator {
             click_cookies,
         )?;
 
-        let pipeline = HostPipeline::from_transport(
+        let pipeline = HostPipeline::from_transport_with_cookies(
             transport,
             config.temp_path.clone(),
             config.fetch_original_imx_filename,
+            site_cookies,
         );
         let queue = QueueManager::new(pipeline, config.queue_settings);
 
