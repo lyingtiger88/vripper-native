@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,6 +68,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _queueSnapshot = const {};
   List<Map<String, dynamic>> _posts = [];
   List<Map<String, dynamic>> _threads = [];
+  String? _databasePath;
   final Set<String> _selectedPostKeys = <String>{};
   Map<String, dynamic> _networkSettings = {
     'mode': 'disabled', 'manual_proxy': null, 'bypass_hosts': <String>[],
@@ -99,6 +101,7 @@ class _HomePageState extends State<HomePage> {
         final decoded = jsonDecode(encoded);
         if (decoded is Map) _networkSettings = Map<String, dynamic>.from(decoded);
       }
+      _databasePath = preferences.getString('vripper.database.path');
       final savedPosts = preferences.getString('vripper.posts');
       final savedThreads = preferences.getString('vripper.threads');
       if (savedPosts != null) {
@@ -414,6 +417,7 @@ class _HomePageState extends State<HomePage> {
         initialNetworkSettings: _networkSettings,
         initialProxyCredentials: _proxyCredentials,
         initialViperCredentials: _viperCredentials,
+        initialDatabasePath: _databasePath,
       ),
     );
     if (!mounted || result == null) return;
@@ -422,6 +426,11 @@ class _HomePageState extends State<HomePage> {
     final viperCredentials = result['viper_credentials'] as Map<String, dynamic>?;
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('vripper.network.settings', jsonEncode(network));
+    final databasePath = result['database_path'] as String?;
+    if (databasePath != null && databasePath.isNotEmpty) {
+      await preferences.setString('vripper.database.path', databasePath);
+      _databasePath = databasePath;
+    }
     await _storeCredentialPair('vripper.proxy', proxyCredentials);
     await _storeCredentialPair('vripper.viper', viperCredentials);
     final oldHandle = _coordinatorHandle;
@@ -1197,10 +1206,11 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials});
+  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath});
   final Map<String, dynamic> initialNetworkSettings;
   final Map<String, dynamic>? initialProxyCredentials;
   final Map<String, dynamic>? initialViperCredentials;
+  final String? initialDatabasePath;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -1209,7 +1219,7 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> {
   final _sections = const [
     'Appearance', 'Downloads', 'Connection', 'Network', 'System',
-    'Automation', 'Viper', 'Hosts', 'Posts', 'Viewers',
+    'Automation', 'Viper', 'Hosts', 'Posts', 'Viewers', 'Database',
   ];
   int _selected = 0;
   late String _proxyMode;
@@ -1221,6 +1231,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
   final _bypass = TextEditingController();
   final _viperUser = TextEditingController();
   final _viperPassword = TextEditingController();
+  String? _legacyDatabasePath;
+  String? _activeDatabasePath;
+  Map<String, dynamic>? _legacyDatabaseReport;
+  bool _databaseBusy = false;
 
   @override
   void initState() {
@@ -1242,6 +1256,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _viperUser.text = widget.initialViperCredentials?['username']?.toString() ?? '';
     _viperPassword.text = widget.initialViperCredentials?['password']?.toString() ?? '';
     _bypass.text = (network['bypass_hosts'] as List? ?? const []).join('\n');
+    _activeDatabasePath = widget.initialDatabasePath;
   }
 
   @override
@@ -1299,7 +1314,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : _placeholderSettings(_sections[_selected])),
+                                child: _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
                               ),
                             ),
                           ],
@@ -1375,6 +1390,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       return;
     }
     Navigator.pop(context, {
+      'database_path': _activeDatabasePath,
       'network': {
         'mode': mode,
         'manual_proxy': manualProxy,
@@ -1472,6 +1488,138 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ),
         ],
       );
+
+  Future<void> _pickLegacyDatabase() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['db', 'sqlite', 'sqlite3'],
+      allowMultiple: false,
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null || path.isEmpty) {
+      _showDatabaseMessage('The selected file is not available as a local filesystem path on this device.');
+      return;
+    }
+    setState(() {
+      _legacyDatabasePath = path;
+      _legacyDatabaseReport = null;
+    });
+  }
+
+  Future<void> _inspectLegacyDatabase() async {
+    final path = _legacyDatabasePath;
+    if (path == null) return;
+    setState(() => _databaseBusy = true);
+    try {
+      final report = await NativeEngine.instance.inspectLegacyDatabaseInBackground(path);
+      if (!mounted) return;
+      setState(() => _legacyDatabaseReport = report);
+      if (report['compatible'] != true) {
+        _showDatabaseMessage('This SQLite file does not contain the required VRipper tables.');
+      }
+    } catch (error) {
+      _showDatabaseMessage('Database inspection failed: $error');
+    } finally {
+      if (mounted) setState(() => _databaseBusy = false);
+    }
+  }
+
+  Future<void> _importLegacyDatabase() async {
+    final source = _legacyDatabasePath;
+    if (source == null || _legacyDatabaseReport?['compatible'] != true) return;
+    setState(() => _databaseBusy = true);
+    try {
+      final support = await getApplicationSupportDirectory();
+      final directory = Directory('\${support.path}\${Platform.pathSeparator}database');
+      await directory.create(recursive: true);
+      final destination = '\${directory.path}\${Platform.pathSeparator}vripper-imported-\${DateTime.now().millisecondsSinceEpoch}.db';
+      final report = await NativeEngine.instance.importLegacyDatabaseInBackground(source, destination);
+      if (!mounted) return;
+      setState(() => _activeDatabasePath = report['destination'] as String? ?? destination);
+      _showDatabaseMessage(
+        'Import verified. \${report['imported']?['total_rows'] ?? 0} rows copied. '
+        'The Java source file was preserved. Save settings to retain this database path.',
+      );
+    } catch (error) {
+      _showDatabaseMessage('Database import failed: $error');
+    } finally {
+      if (mounted) setState(() => _databaseBusy = false);
+    }
+  }
+
+  void _showDatabaseMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
+    );
+  }
+
+  Widget _databaseSettings() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('Legacy Java database', style: TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 8),
+      const Text(
+        'Select the vripper.db file from the Java edition. Inspection is read-only. Import creates a separate verified SQLite copy and never overwrites the original file.',
+        style: TextStyle(fontSize: 12, color: _muted),
+      ),
+      const SizedBox(height: 14),
+      OutlinedButton.icon(
+        onPressed: _databaseBusy ? null : _pickLegacyDatabase,
+        icon: const Icon(Icons.folder_open),
+        label: const Text('Choose Java database'),
+      ),
+      if (_legacyDatabasePath != null) ...[
+        const SizedBox(height: 8),
+        SelectableText(_legacyDatabasePath!, style: const TextStyle(fontSize: 11)),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _databaseBusy ? null : _inspectLegacyDatabase,
+          icon: const Icon(Icons.fact_check_outlined),
+          label: const Text('Inspect database'),
+        ),
+      ],
+      if (_legacyDatabaseReport != null) ...[
+        const SizedBox(height: 12),
+        Text(
+          (_legacyDatabaseReport!['compatible'] == true ? 'Compatible VRipper database' : 'Database not compatible'),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: _legacyDatabaseReport!['compatible'] == true ? Colors.green : Colors.red,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text('Integrity: \${_legacyDatabaseReport!['integrity_check'] ?? 'unknown'}'),
+        Text('Tables: \${(_legacyDatabaseReport!['tables'] as List? ?? const []).length}'),
+        Text('Total rows: \${_legacyDatabaseReport!['total_rows'] ?? 0}'),
+        Text('Liquibase history: \${_legacyDatabaseReport!['has_liquibase_history'] == true ? 'found' : 'not found'}'),
+        if ((_legacyDatabaseReport!['missing_required_tables'] as List? ?? const []).isNotEmpty)
+          Text('Missing: \${(_legacyDatabaseReport!['missing_required_tables'] as List).join(', ')}',
+              style: const TextStyle(color: Colors.red)),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          onPressed: _databaseBusy || _legacyDatabaseReport!['compatible'] != true ? null : _importLegacyDatabase,
+          icon: const Icon(Icons.file_download_outlined),
+          label: const Text('Import a verified copy'),
+        ),
+      ],
+      const Divider(height: 24),
+      const Text('Selected database copy', style: TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      SelectableText(_activeDatabasePath ?? 'No legacy database imported', style: const TextStyle(fontSize: 11)),
+      if (_databaseBusy) ...[
+        const SizedBox(height: 12),
+        const LinearProgressIndicator(),
+      ],
+      const SizedBox(height: 14),
+      const Text(
+        'The importer currently validates and copies the legacy SQLite schema and records. Switching the live download engine to this imported store, including ongoing status writes and schema migrations, is a separate integration milestone and is not yet enabled.',
+        style: TextStyle(fontSize: 11, color: _muted),
+      ),
+    ],
+  );
 
   Widget _placeholderSettings(String section) {
     final items = switch (section) {
