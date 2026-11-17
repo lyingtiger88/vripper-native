@@ -296,7 +296,24 @@ pub fn read_legacy_catalog(path: &Path) -> Result<serde_json::Value, DatabaseErr
             "legacy": true
         }))
     })?.collect::<Result<Vec<_>, _>>()?;
-    Ok(serde_json::json!({"posts": posts, "threads": threads}))
+    let mut statement = connection.prepare("SELECT ID, POST_ID_REF, HOST, \"INDEX\", URL, THUMB_URL, STATUS, SIZE, DOWNLOADED, FILENAME FROM IMAGE ORDER BY POST_ID_REF, \"INDEX\", ID")?;
+    let images = statement.query_map([], |row| {
+        Ok(serde_json::json!({
+            "legacy_id": row.get::<_, i64>(0)?,
+            "post_legacy_id": row.get::<_, i64>(1)?,
+            "host": row.get::<_, i64>(2)?,
+            "index": row.get::<_, i64>(3)?,
+            "url": row.get::<_, String>(4)?,
+            "thumbnail_url": row.get::<_, String>(5)?,
+            "status": row.get::<_, String>(6)?,
+            "size": row.get::<_, i64>(7)?,
+            "downloaded": row.get::<_, i64>(8)?,
+            "filename": row.get::<_, String>(9)?,
+            "legacy": true
+        }))
+    })?.collect::<Result<Vec<_>, _>>()?;
+
+    Ok(serde_json::json!({"posts": posts, "threads": threads, "images": images}))
 }
 
 
