@@ -125,10 +125,14 @@ Shipped applications must not require a separately installed Java Runtime or JVM
 - [Full roadmap](docs/ROADMAP.md)
 - [Reverse-engineering baseline](docs/REVERSE_ENGINEERING.md)
 - [Reference UI inventory](docs/REFERENCE_UI_INVENTORY.md)
+- [Detailed UI behavior audit](docs/UI_BEHAVIOR_AUDIT.md)
 - [Engine behavior trace](docs/ENGINE_TRACE.md)
 - [Host compatibility matrix](docs/HOST_COMPATIBILITY_MATRIX.md)
 - [Compatibility specification](docs/COMPATIBILITY_SPEC.md)
 - [Host resolver audit](docs/HOST_RESOLVER_AUDIT.md)
+- [Settings inventory](docs/SETTINGS_INVENTORY.md)
+- [Persistence schema audit](docs/PERSISTENCE_SCHEMA_AUDIT.md)
+- [Download and output audit](docs/DOWNLOAD_AND_OUTPUT_AUDIT.md)
 - [Settings inventory](docs/SETTINGS_INVENTORY.md)
 - [Download and output audit](docs/DOWNLOAD_AND_OUTPUT_AUDIT.md)
 - [Persistence schema audit](docs/PERSISTENCE_SCHEMA_AUDIT.md)
@@ -141,4 +145,4 @@ The compatibility reference is [dev-claw/vripper-project](https://github.com/dev
 
 ## Current milestone
 
-**Phase 0 is underway.** Source-level audits now cover all 16 registered host resolvers, settings sections, download lifecycle, output naming, and the logical SQLite schema. Runtime fixtures and reference UI captures remain outstanding before production parity work can be accepted.
+**Phase 0 is underway.** Source-level audits cover all 16 registered host resolvers, settings, UI interactions, download lifecycle, output naming and the logical SQLite schema. The Rust engine now contains an initial link/output compatibility slice, a host resolver layer and a thread XML parser with synthetic fixtures. CI verification is pending; runtime reference captures and end-to-end parity are still outstanding.
