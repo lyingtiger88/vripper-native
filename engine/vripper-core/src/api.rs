@@ -150,10 +150,6 @@ impl ParserState {
         let Some(post) = self.current_post.take() else {
             return;
         };
-        if post.images.is_empty() {
-            return;
-        }
-
         let url = format!(
             "{site_proxy}/threads/{}?p={}&viewfull=1#post{}",
             self.thread_id, post.id, post.id
