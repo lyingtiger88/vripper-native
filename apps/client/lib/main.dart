@@ -1,5 +1,8 @@
 // ignore: deprecated_member_use
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'native_engine.dart';
 
 void main() {
@@ -55,11 +58,109 @@ class _HomePageState extends State<HomePage> {
   bool _showStatus = true;
   String _scanSummary = '';
   String _session = 'Local';
+  int? _coordinatorHandle;
+  String? _coordinatorError;
+  Map<String, dynamic> _queueSnapshot = const {};
+  Map<String, dynamic> _networkSettings = {
+    'network': {'mode': 'disabled', 'manual_proxy': null, 'bypass_hosts': <String>[]},
+    'proxy_credentials': null,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCoordinator();
+  }
 
   @override
   void dispose() {
+    final handle = _coordinatorHandle;
+    if (handle != null && NativeEngine.instance.isLoaded) {
+      NativeEngine.instance.destroyCoordinator(handle);
+    }
     _search.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeCoordinator() async {
+    try {
+      NativeEngine.instance.load();
+      if (!NativeEngine.instance.isLoaded) {
+        throw StateError(NativeEngine.instance.loadError ?? 'Native engine is unavailable');
+      }
+      final downloads = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final temporary = await getTemporaryDirectory();
+      await Directory(downloads.path).create(recursive: true);
+      await Directory(temporary.path).create(recursive: true);
+      final config = <String, dynamic>{
+        ..._networkSettings,
+        'system_proxy': null,
+        'viper_host': 'https://vipergirls.to',
+        'site_proxy': 'https://vipergirls.to',
+        'viper_credentials': null,
+        'request_limit_per_second': 2,
+        'max_attempts': 3,
+        'connection_timeout_secs': 30,
+        'queue_settings': {'max_global_concurrent': 0, 'max_per_host_concurrent': 2},
+        'download_path': downloads.path,
+        'temp_path': temporary.path,
+        'forum_subdirectory': false,
+        'thread_sublocation': false,
+        'append_post_id': false,
+        'force_order': false,
+        'fetch_original_imx_filename': false,
+      };
+      final handle = await NativeEngine.instance.createCoordinatorInBackground(config);
+      if (!mounted) {
+        NativeEngine.instance.destroyCoordinator(handle);
+        return;
+      }
+      setState(() {
+        _coordinatorHandle = handle;
+        _coordinatorError = null;
+      });
+      _pollQueueEvents(handle);
+    } catch (error) {
+      if (mounted) setState(() => _coordinatorError = error.toString());
+    }
+  }
+
+  Future<void> _pollQueueEvents(int handle) async {
+    while (mounted && _coordinatorHandle == handle) {
+      try {
+        final event = await NativeEngine.instance.pollEventInBackground(handle, 900);
+        if (event.containsKey('timeout')) continue;
+        final snapshot = event['snapshot'];
+        if (snapshot is Map && mounted) {
+          setState(() => _queueSnapshot = Map<String, dynamic>.from(snapshot));
+        }
+      } catch (error) {
+        if (mounted) setState(() => _coordinatorError = error.toString());
+        break;
+      }
+    }
+  }
+
+  Future<void> _stopAllDownloads() async {
+    final handle = _coordinatorHandle;
+    if (handle == null) return;
+    try {
+      NativeEngine.instance.stopAll(handle);
+      setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
+    } catch (error) {
+      _showMessage('Could not stop downloads: $error');
+    }
+  }
+
+  Future<void> _clearFinished() async {
+    final handle = _coordinatorHandle;
+    if (handle == null) return;
+    try {
+      NativeEngine.instance.clearFinished(handle);
+      setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
+    } catch (error) {
+      _showMessage('Could not clear completed downloads: $error');
+    }
   }
 
   Future<void> _addLinks() async {
