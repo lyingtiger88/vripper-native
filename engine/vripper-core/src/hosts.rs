@@ -156,7 +156,7 @@ fn first_text(document: &Html, css: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn default_name(url: &str) -> String {
+pub fn default_image_name(url: &str) -> String {
     let last = url.rsplit('/').next().unwrap_or(url);
     last.rsplit_once('.').map(|(name, _)| name).unwrap_or(last).to_owned()
 }
@@ -207,7 +207,7 @@ pub fn resolve_host_html(
             };
             let image_url = required(first_attr_including_empty(&page, "img[class='centred']", "src"), "centred image src")?;
             let title = required(first_attr_including_empty(&page, "img[class='centred']", "alt"), "centred image alt")?;
-            let name = if title.is_empty() { default_name(&image_url) } else { title };
+            let name = if title.is_empty() { default_image_name(&image_url) } else { title };
             Ok(resolved(name, image_url))
         }
         HostId::DPicMe => {
