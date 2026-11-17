@@ -531,6 +531,89 @@ mod tests {
         assert_eq!(QueueSettings { max_global_concurrent: 2, max_per_host_concurrent: 8 }.per_host_limit(), 4);
     }
 
+
+    #[test]
+    fn moves_pending_jobs_to_top_and_bottom() {
+        let mut pending = VecDeque::from(vec![
+            QueueJob { id: 1, host: HostId::DPicMe, source_url: String::new(), thumbnail_url: String::new(), image_index_zero_based: 0, force_order: false, destination_directory: std::path::PathBuf::new() },
+            QueueJob { id: 2, host: HostId::DPicMe, source_url: String::new(), thumbnail_url: String::new(), image_index_zero_based: 0, force_order: false, destination_directory: std::path::PathBuf::new() },
+            QueueJob { id: 3, host: HostId::DPicMe, source_url: String::new(), thumbnail_url: String::new(), image_index_zero_based: 0, force_order: false, destination_directory: std::path::PathBuf::new() },
+        ]);
+        assert!(move_pending(&mut pending, 3, QueueMove::Top));
+        assert_eq!(pending.iter().map(|job| job.id).collect::<Vec<_>>(), vec![3, 1, 2]);
+        assert!(move_pending(&mut pending, 3, QueueMove::Bottom));
+        assert_eq!(pending.iter().map(|job| job.id).collect::<Vec<_>>(), vec![1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn queue_runs_a_job_through_the_download_pipeline() {
+        use std::time::Duration;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("HEAD"))
+            .and(path("/queued.jpg"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "image/jpeg")
+                    .insert_header("content-length", "4"),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/queued.jpg"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "image/jpeg")
+                    .insert_header("content-length", "4")
+                    .set_body_bytes(vec![0xFF, 0xD8, 0xFF, 0xD9]),
+            )
+            .mount(&server)
+            .await;
+
+        let temp = tempfile::tempdir().unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let pipeline = HostPipeline::from_transport(
+            crate::transport::HttpTransport::from_client(client),
+            temp.path().join("temp"),
+            false,
+        );
+        let queue = QueueManager::new(pipeline, QueueSettings::default());
+        let id = queue
+            .add(QueueJob {
+                id: 0,
+                host: HostId::DPicMe,
+                source_url: format!("{}/queued.jpg", server.uri()),
+                thumbnail_url: String::new(),
+                image_index_zero_based: 0,
+                force_order: false,
+                destination_directory: temp.path().join("downloads"),
+            })
+            .await
+            .unwrap();
+
+        let snapshot = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let snapshot = queue.snapshot().await.unwrap();
+                if snapshot.items.iter().any(|item| {
+                    item.id == id
+                        && matches!(item.status, QueueStatus::Finished | QueueStatus::Error)
+                }) {
+                    break snapshot;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        let item = snapshot.items.iter().find(|item| item.id == id).unwrap();
+        assert_eq!(item.status, QueueStatus::Finished);
+        assert_eq!(item.filename.as_deref(), Some("queued.JPG"));
+        queue.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn new_queue_starts_empty() {
         let temp = tempfile::tempdir().unwrap();
