@@ -157,3 +157,87 @@ Source: `MenuBarView.kt`
 - [ ] Capture overview workspace, details panel, image viewer and minimap.
 - [ ] Record mouse and keyboard interactions for image navigation/zoom.
 - [ ] Verify window geometry restore and optional toolbar/status panel behavior.
+
+
+## Posts quick filters and context menu
+
+Posts quick filters:
+- All
+- Active (PENDING or DOWNLOADING)
+- Done (FINISHED)
+- Automation (AWAITING_REVIEW, READY, RUNNING or FAILED)
+- Paused (STOPPED)
+- Error (ERROR)
+
+Search matches title, external post ID, thread ID, host text, status, automation action state and path. Search and quick filter are combined.
+
+Post context menu order:
+1. Start
+2. Stop
+3. Rename
+4. Auto rename (bulk rename selected to first title)
+5. Delete
+6. Separator
+7. Open containing folder (visible only in local session)
+8. Open link
+9. Open overview
+10. Separator
+11. Move to top
+12. Move up
+13. Move down
+14. Move to bottom
+
+Selection behavior: right-clicking an unselected row/cell selects that item before showing its context menu. Multi-selection is preserved when right-clicking an already selected item.
+
+## Post details panel
+
+The overview details panel has General and Automation sections.
+
+General fields:
+- Post Link
+- Posted By
+- Title
+- More titles
+- Status
+- Path
+- Total/progress
+- Hosts
+- Added On
+- Downloads controls: Start and Stop
+
+Automation fields:
+- Automation state
+- Missing fields
+- Action error
+- Custom fields editor (one `name=value` per line)
+- Save fields
+- Run action
+- Retry action
+- Skip action
+
+## Image viewer interaction contract
+
+Toolbar order:
+1. Overview toggle
+2. View toggle
+3. Previous image
+4. Next image
+5. Fit
+6. Zoom out
+7. Zoom slider
+8. Zoom in
+9. 100% fill
+
+- Left/Right arrows: previous/next image; in overview they move the highlighted thumbnail.
+- Home/End: first/last image (or thumbnail selection).
+- Plus/Add/Equals: zoom in.
+- Minus/Subtract: zoom out.
+- Digit 0: fit-to-window in viewer; reset thumbnail size in overview.
+- Scroll up/down over the image: previous/next image; toolbar scroll is not intercepted.
+- Dragging/panning suspends speculative preloading until mouse release.
+- View mode displays the downloaded file from local disk or the server stream; it does not display the web-hosted original. Overview thumbnails may use remote thumbnail URLs.
+- Status line shows image name, dimensions, format and byte size; center label shows current index/total or photo count; source badge distinguishes local, server, not-downloaded and missing/moved states.
+- Loading bar is delayed 300ms to avoid flashing on cached loads.
+- Resize debounce is 250ms; decode target grows with device-pixel scale and cache is rebuilt after resize settles.
+
+These are source-level findings. Mouse wheel direction, zoom step value, gestures and exact minimap behavior still need runtime capture.
