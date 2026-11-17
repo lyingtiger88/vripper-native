@@ -82,6 +82,50 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  Map<String, dynamic>? _environmentProxyEndpoint() {
+    final environment = Platform.environment;
+    final raw = environment['HTTPS_PROXY'] ??
+        environment['https_proxy'] ??
+        environment['HTTP_PROXY'] ??
+        environment['http_proxy'] ??
+        environment['ALL_PROXY'] ??
+        environment['all_proxy'];
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = raw.contains('://') ? raw : 'http://$raw';
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.host.isEmpty) return null;
+    final scheme = uri.scheme.toLowerCase();
+    final protocol = switch (scheme) {
+      'https' => 'https',
+      'socks5' || 'socks5h' => 'socks5',
+      'http' => 'http',
+      _ => null,
+    };
+    if (protocol == null) return null;
+    final defaultPort = protocol == 'https' ? 443 : (protocol == 'socks5' ? 1080 : 80);
+    return {'protocol': protocol, 'host': uri.host, 'port': uri.hasPort ? uri.port : defaultPort};
+  }
+
+  Map<String, dynamic>? _environmentProxyCredentials() {
+    final environment = Platform.environment;
+    final raw = environment['HTTPS_PROXY'] ??
+        environment['https_proxy'] ??
+        environment['HTTP_PROXY'] ??
+        environment['http_proxy'] ??
+        environment['ALL_PROXY'] ??
+        environment['all_proxy'];
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = raw.contains('://') ? raw : 'http://$raw';
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.userInfo.isEmpty) return null;
+    final parts = uri.userInfo.split(':');
+    if (parts.length < 2) return null;
+    final username = Uri.decodeComponent(parts.first);
+    final password = Uri.decodeComponent(parts.sublist(1).join(':'));
+    if (username.isEmpty || password.isEmpty) return null;
+    return {'username': username, 'password': password};
+  }
+
   Future<void> _initializeCoordinator() async {
     try {
       NativeEngine.instance.load();
@@ -94,7 +138,12 @@ class _HomePageState extends State<HomePage> {
       await Directory(temporary.path).create(recursive: true);
       final config = <String, dynamic>{
         ..._networkSettings,
-        'system_proxy': null,
+        'system_proxy': (_networkSettings['network'] as Map?)?['mode'] == 'system'
+            ? _environmentProxyEndpoint()
+            : null,
+        'proxy_credentials': (_networkSettings['network'] as Map?)?['mode'] == 'system'
+            ? _environmentProxyCredentials()
+            : _networkSettings['proxy_credentials'],
         'viper_host': 'https://vipergirls.to',
         'site_proxy': 'https://vipergirls.to',
         'viper_credentials': null,
