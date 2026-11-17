@@ -70,7 +70,9 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] Port queue, per-host/global concurrency, pause/stop/restart, retry and error semantics.
 - [ ] Port temporary-file handling, MIME validation, naming and directory layout.
 - [ ] Port database entities, task/event reporting, logs and cache behavior.
-- [ ] Implement centralized proxy routing for every application-owned network request.
+- [x] Implement a centralized Rust proxy-aware HTTP client builder with Disabled/System/Manual modes and HTTP/HTTPS/SOCKS5h support.
+- [ ] Wire the shared client into every login, lookup, host-resolution and image-download request.
+- [ ] Implement OS system-proxy discovery and secure credential storage adapters.
 - [ ] Implement proxy connection testing and secure credential handling.
 - [ ] Pass parser, host, queue, lifecycle, persistence and output compatibility tests.
 
@@ -84,7 +86,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] Reproduce desktop shell, tabs, toolbar, status and error regions.
 - [ ] Reproduce Posts, Threads, Tasks and Logs views.
 - [ ] Reproduce dialogs, settings, filters, tables, grids, context actions and keyboard behavior.
-- [ ] Add a distinct Settings → Network section while preserving the existing Connection section.
+- [x] Add a distinct Settings → Network section prototype while preserving the existing Connection section.
+- [ ] Persist and validate Network settings through the native configuration/secure-storage bridge.
 - [ ] Add Disabled / System / Manual proxy modes and HTTP / HTTPS / SOCKS5 settings.
 - [ ] Add manual endpoint, optional authentication, bypass list and Test connection feedback.
 - [ ] Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap, cache and geometry persistence.
@@ -157,8 +160,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
 | Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
 | Persistence | SQLite/Liquibase identified; full schema mapping pending |
-| Network/proxy settings | Requirements documented; implementation pending |
-| Rust engine | Initial Rust workspace, scanner, output helpers, host resolver layer and XML parser authored; transport/queue/persistence pending |
+| Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
+| Rust engine | Workspace, scanner, output helpers, host resolvers, XML parser, FFI and proxy client builder authored; CI verification and queue/persistence pending |
 | Flutter UI | Not started |
 | Platform builds | Not started |
 | CI and packaging | Target matrix defined; implementation pending |
