@@ -40,7 +40,8 @@ void main() {
         body: SizedBox(
           width: 1200,
           height: 600,
-          child: PostsTab(
+          child: StatefulBuilder(
+            builder: (context, setState) => PostsTab(
             search: search,
             summary: '1 post discovered',
             posts: [
@@ -57,11 +58,11 @@ void main() {
             ],
             selectedKeys: selected ? {'100:200'} : <String>{},
             onAddLinks: () {},
-            onToggleSelection: (_, value) => selected = value,
+            onToggleSelection: (_, value) => setState(() => selected = value),
             onRemoveSelected: () => removed = true,
             onClear: () {},
             onCopyUrl: (_) {},
-          ),
+          )),
         ),
       ),
     ));
@@ -71,7 +72,7 @@ void main() {
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(selected, isTrue);
-    await tester.tap(find.text('Remove selected (0)'));
+    await tester.tap(find.text('Remove selected (1)'));
     await tester.pump();
     expect(removed, isTrue);
     search.dispose();
