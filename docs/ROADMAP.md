@@ -47,7 +47,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 
 ## Phase 1 — Native architecture foundation
 
-- [ ] Define Rust workspace and crate boundaries.
+- [x] Initialize Rust workspace and core crate; deterministic link/path primitives, host resolver layer and XML response parser authored (CI verification pending).
 - [ ] Define versioned Flutter↔Rust FFI contracts, typed events and error model.
 - [ ] Define async runtime, cancellation, backpressure and bounded concurrency.
 - [ ] Define SQLite schema and data import plan.
