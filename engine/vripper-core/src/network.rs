@@ -13,9 +13,10 @@ use std::time::Duration;
 
 pub const REFERENCE_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ProxyMode {
+    #[default]
     Disabled,
     System,
     Manual,
@@ -52,10 +53,6 @@ pub struct NetworkConfig {
     pub mode: ProxyMode,
     pub manual_proxy: Option<ProxyEndpoint>,
     pub bypass_hosts: Vec<String>,
-}
-
-impl Default for ProxyMode {
-    fn default() -> Self { Self::Disabled }
 }
 
 impl Default for NetworkConfig {
