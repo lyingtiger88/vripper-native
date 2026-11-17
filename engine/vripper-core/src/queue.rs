@@ -139,7 +139,7 @@ impl QueueStore {
         use rusqlite::OptionalExtension;
         let connection = rusqlite::Connection::open(path).map_err(persistence_error)?;
         connection.busy_timeout(std::time::Duration::from_secs(5)).map_err(persistence_error)?;
-        connection.execute_batch("CREATE TABLE IF NOT EXISTS NATIVE_QUEUE (ID INTEGER PRIMARY KEY CHECK(ID=1), DATA TEXT NOT NULL)").map_err(persistence_error)?;
+        connection.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; CREATE TABLE IF NOT EXISTS NATIVE_QUEUE (ID INTEGER PRIMARY KEY CHECK(ID=1), DATA TEXT NOT NULL)").map_err(persistence_error)?;
         let data: Option<String> = connection.query_row("SELECT DATA FROM NATIVE_QUEUE WHERE ID=1", [], |row| row.get(0)).optional().map_err(persistence_error)?;
         let journal = match data {
             Some(data) => serde_json::from_str(&data).map_err(persistence_error)?,
