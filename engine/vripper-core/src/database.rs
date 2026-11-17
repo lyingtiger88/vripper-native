@@ -481,7 +481,7 @@ mod tests {
         let db = Connection::open(&path).unwrap();
         db.execute_batch("CREATE TABLE POST (ID INTEGER, POST_ID INTEGER, THREAD_ID INTEGER, POST_TITLE TEXT, THREAD_TITLE TEXT, FORUM TEXT, URL TEXT, TOTAL INTEGER, DONE INTEGER, STATUS TEXT, OUTPUT_PATH TEXT, FOLDER_NAME TEXT, SIZE INTEGER, DOWNLOADED INTEGER, RANK INTEGER, TOKEN TEXT);
             CREATE TABLE THREAD (ID INTEGER, THREAD_ID INTEGER, TITLE TEXT, URL TEXT, TOTAL INTEGER);
-            CREATE TABLE IMAGE (ID INTEGER, POST_ID_REF INTEGER, HOST INTEGER, "INDEX" INTEGER, URL TEXT, THUMB_URL TEXT, STATUS TEXT, SIZE INTEGER, DOWNLOADED INTEGER, FILENAME TEXT);
+            CREATE TABLE IMAGE (ID INTEGER, POST_ID_REF INTEGER, HOST INTEGER, \"INDEX\" INTEGER, URL TEXT, THUMB_URL TEXT, STATUS TEXT, SIZE INTEGER, DOWNLOADED INTEGER, FILENAME TEXT);
             INSERT INTO IMAGE VALUES (11,7,1,0,'https://dpic.me/a.jpg','https://dpic.me/t.jpg','FINISHED',10,10,'a.jpg');
             INSERT INTO POST VALUES (7,700,300,'post','thread','forum','https://example.invalid',2,1,'STOPPED',NULL,'folder',100,50,0,'secret-fixture');
             INSERT INTO THREAD VALUES (3,300,'thread','https://example.invalid',1);").unwrap();
@@ -490,6 +490,8 @@ mod tests {
         assert_eq!(catalog["posts"][0]["post_id"], 700);
         assert_eq!(catalog["posts"][0]["status"], "STOPPED");
         assert_eq!(catalog["threads"][0]["thread_id"], 300);
+        assert_eq!(catalog["images"][0]["legacy_id"], 11);
+        assert_eq!(catalog["images"][0]["status"], "FINISHED");
         assert!(!catalog.to_string().contains("secret-fixture"));
     }
 
