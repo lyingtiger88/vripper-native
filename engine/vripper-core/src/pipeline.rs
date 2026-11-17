@@ -256,6 +256,122 @@ impl HostPipeline {
 mod tests {
     use super::*;
 
+
+    #[tokio::test]
+    async fn downloads_direct_image_through_head_and_stream_pipeline() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let bytes = vec![0xFF, 0xD8, 0xFF, 0xD9];
+        Mock::given(method("HEAD"))
+            .and(path("/direct.jpg"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "image/jpeg")
+                    .insert_header("content-length", "4"),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/direct.jpg"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "image/jpeg")
+                    .set_body_bytes(bytes.clone()),
+            )
+            .mount(&server)
+            .await;
+
+        let temp = tempfile::tempdir().unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let pipeline = HostPipeline::from_transport(
+            crate::transport::HttpTransport::from_client(client),
+            temp.path().join("temp"),
+            false,
+        );
+        let source_url = format!("{}/direct.jpg", server.uri());
+        let result = pipeline
+            .download_image(
+                HostId::DPicMe,
+                &source_url,
+                "",
+                0,
+                false,
+                &temp.path().join("downloads"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.filename, "direct.JPG");
+        assert_eq!(result.bytes_written, 4);
+        assert!(result.complete);
+        assert_eq!(tokio::fs::read(result.path).await.unwrap(), bytes);
+    }
+
+    #[tokio::test]
+    async fn resolves_host_html_then_downloads_image_through_shared_transport() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let image_url = format!("{}/images/pic.jpg", server.uri());
+        let page = format!(
+            r#"<html><body><img id="pic" alt="fixture-picture" src="{image_url}"></body></html>"#
+        );
+        Mock::given(method("HEAD"))
+            .and(path("/view/1"))
+            .respond_with(
+                ResponseTemplate::new(200).insert_header("content-type", "text/html"),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/view/1"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/html")
+                    .set_body_string(page),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/images/pic.jpg"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "image/jpeg")
+                    .insert_header("content-length", "4")
+                    .set_body_bytes(vec![0xFF, 0xD8, 0xFF, 0xD9]),
+            )
+            .mount(&server)
+            .await;
+
+        let temp = tempfile::tempdir().unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let pipeline = HostPipeline::from_transport(
+            crate::transport::HttpTransport::from_client(client),
+            temp.path().join("temp"),
+            false,
+        );
+        let source_url = format!("{}/view/1", server.uri());
+        let result = pipeline
+            .download_image(
+                HostId::DPicMe,
+                &source_url,
+                "",
+                0,
+                false,
+                &temp.path().join("downloads"),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.filename, "fixture-picture.JPG");
+        assert_eq!(result.bytes_written, 4);
+        assert!(result.complete);
+        assert!(result.path.exists());
+    }
+
     #[test]
     fn default_referer_matches_reference_host_base() {
         assert_eq!(DEFAULT_REFERER, "https://vipergirls.to/");
