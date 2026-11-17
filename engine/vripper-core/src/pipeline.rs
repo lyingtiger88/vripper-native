@@ -12,6 +12,8 @@ use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint};
 use crate::transport::{DownloadedTempFile, HttpTransport, RequestContext, TransportError};
 use crate::ImageMime;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+use tokio::time::sleep;
 use thiserror::Error;
 
 const DEFAULT_REFERER: &str = "https://vipergirls.to/";
@@ -42,6 +44,7 @@ pub struct HostPipeline {
     temp_directory: PathBuf,
     fetch_original_imx_filename: bool,
     site_cookies: Vec<crate::hosts::CookieMutation>,
+    max_attempts: u8,
 }
 
 impl HostPipeline {
@@ -57,6 +60,7 @@ impl HostPipeline {
             temp_directory: temp_directory.into(),
             fetch_original_imx_filename,
             site_cookies: Vec::new(),
+            max_attempts: 3,
         })
     }
 
@@ -79,17 +83,68 @@ impl HostPipeline {
         fetch_original_imx_filename: bool,
         site_cookies: Vec<crate::hosts::CookieMutation>,
     ) -> Self {
+        Self::from_transport_with_options(
+            transport,
+            temp_directory,
+            fetch_original_imx_filename,
+            site_cookies,
+            3,
+        )
+    }
+
+    pub fn from_transport_with_options(
+        transport: HttpTransport,
+        temp_directory: impl Into<PathBuf>,
+        fetch_original_imx_filename: bool,
+        site_cookies: Vec<crate::hosts::CookieMutation>,
+        max_attempts: u8,
+    ) -> Self {
         Self {
             transport,
             temp_directory: temp_directory.into(),
             fetch_original_imx_filename,
             site_cookies,
+            max_attempts: max_attempts.clamp(1, 10),
         }
     }
 
     /// Resolve the host's final image URL, stream the image to a VRipper-style
     /// temporary file, and move it to the exact requested destination filename.
     pub async fn download_image(
+        &self,
+        host: HostId,
+        source_url: &str,
+        thumbnail_url: &str,
+        image_index_zero_based: usize,
+        force_order: bool,
+        destination_directory: &Path,
+    ) -> Result<CompletedImage, PipelineError> {
+        let mut last_error = None;
+        for attempt in 1..=self.max_attempts {
+            match self
+                .download_image_once(
+                    host,
+                    source_url,
+                    thumbnail_url,
+                    image_index_zero_based,
+                    force_order,
+                    destination_directory,
+                )
+                .await
+            {
+                Ok(result) => return Ok(result),
+                Err(error) => last_error = Some(error),
+            }
+            if attempt < self.max_attempts {
+                sleep(Duration::from_secs(2)).await;
+            }
+        }
+        Err(last_error.unwrap_or_else(|| {
+            PipelineError::HostResolution("download failed without an attempt".into())
+        }))
+    }
+
+    async fn download_image_once(
         &self,
         host: HostId,
         source_url: &str,
