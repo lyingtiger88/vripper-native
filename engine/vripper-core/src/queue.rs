@@ -397,9 +397,9 @@ async fn run_queue(
                         }
                         if let Some(store) = &store {
                             if let Err(error) = store.save(&jobs, &items, &legacy_image_ids) {
-                                for (id, _) in inserted.iter().copied() {
-                                    jobs.remove(&id);
-                                    items.remove(&id);
+                                for (id, _) in inserted.iter() {
+                                    jobs.remove(id);
+                                    items.remove(id);
                                 }
                                 for image_id in new_legacy_markers {
                                     legacy_image_ids.remove(&image_id);
