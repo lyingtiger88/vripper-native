@@ -28,7 +28,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Inspect retry defaults, authentication entry points, cookie usage, queue scheduling and image state lifecycle.
 - [x] Document the requested Network settings section and proxy behavior.
 - [x] Inventory the nine Settings sections and record their controls, defaults and validation behavior.
-- [ ] Complete exhaustive GUI inventory: all table columns, filters, dialogs, shortcuts and interaction states.
+- [x] Record Posts table columns, List/Grid selection behavior, Threads/Tasks/Logs interactions, quick filters, grouping and action bar/menu shortcuts.
+- [ ] Capture reference screenshots and interaction recordings for pixel/gesture parity.
 - [x] Inspect source for every one of the 16 registered host resolvers and record selectors, request mutations and URL transformations.
 - [ ] Create authorized HTML fixtures and runtime tests for each host resolver.
 - [x] Trace exact folderName generation, including optional post ID suffix.
@@ -151,13 +152,13 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 |---|---|
 | Reference repository audit | Initial tree and core paths inspected |
 | GUI inventory | Initial shell and key screens documented; exhaustive inventory pending |
-| Site navigation/parsing | Initial scanner and SAX response flow traced |
-| Host extraction | 16 registered hosts identified; deep resolver fixtures pending |
+| Site navigation/parsing | Rust URL scanner and XML parser implemented with synthetic tests; CI validation pending |
+| Host extraction | 16 resolver implementations transcribed into Rust; synthetic fixtures added; CI validation pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
-| Output compatibility | Initial rules traced; golden vectors pending |
+| Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
 | Persistence | SQLite/Liquibase identified; full schema mapping pending |
 | Network/proxy settings | Requirements documented; implementation pending |
-| Rust engine | Not started |
+| Rust engine | Initial Rust workspace, scanner, output helpers, host resolver layer and XML parser authored; transport/queue/persistence pending |
 | Flutter UI | Not started |
 | Platform builds | Not started |
 | CI and packaging | Target matrix defined; implementation pending |
