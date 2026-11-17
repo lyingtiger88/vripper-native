@@ -314,7 +314,7 @@ pub fn resolve_host_html(
         HostId::ImageZilla => {
             let title = first_attr_including_empty(&document, "img#photo", "title")
                 .ok_or_else(|| "photo title attribute was not found".to_owned())?;
-            let name = if title.is_empty() { default_name(source_url) } else { title };
+            let name = if title.is_empty() { default_image_name(source_url) } else { title };
             Ok(resolved(name, source_url.replace("show", "images")))
         }
         HostId::Imgbox => {
@@ -330,7 +330,7 @@ pub fn resolve_host_html(
         HostId::Imx => {
             let direct_url = imx_direct_image_url(source_url, thumbnail_url)?;
             if !fetch_original_imx_filename {
-                return Ok(resolved(default_name(thumbnail_url), direct_url));
+                return Ok(resolved(default_image_name(thumbnail_url), direct_url));
             }
             let page_url = imx_page_url(source_url);
             let Some(continue_value) = first_attr(&document, "input[name='imgContinue']", "value") else {
@@ -348,7 +348,7 @@ pub fn resolve_host_html(
             let after_document = Html::parse_document(after);
             let name = first_text(&after_document, "div[class*='img-title']")
                 .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| default_name(thumbnail_url));
+                .unwrap_or_else(|| default_image_name(thumbnail_url));
             Ok(resolved(name, direct_url))
         }
         HostId::Pimpandhost => {
@@ -402,7 +402,7 @@ pub fn resolve_host_html(
         HostId::TurboImageHost => {
             let name = first_text(&document, "div.titleFullS > h1")
                 .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| default_name(source_url));
+                .unwrap_or_else(|| default_image_name(source_url));
             let image_url = required(first_attr_including_empty(&document, "img#imageid", "src"), "imageid src")?;
             Ok(resolved(name, image_url))
         }
