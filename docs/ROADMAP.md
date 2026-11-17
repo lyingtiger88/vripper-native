@@ -2,7 +2,7 @@
 
 > **Default branch status:** The repository's `main` branch currently contains the migration requirements and compatibility baseline. Implementation work is being developed in draft PR [#1](https://github.com/lyingtiger88/vripper-native/pull/1) and is not yet part of `main`.
 >
-> **Status rule:** A task is marked complete on this page only after its implementation is present in `main) and its relevant checks pass. Work present only on a feature branch is marked **in review / not merged**.
+> **Status rule:** A task is marked complete on this page only after its implementation is present in `main` and its relevant checks pass. Work present only on a feature branch is marked **in review / not merged**.
 
 ## At a glance
 
