@@ -16,24 +16,24 @@ pub mod viper_auth;
 pub mod ffi;
 
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThreadLink {
     pub base_url: String,
     pub thread_id: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PostLink {
     pub base_url: String,
     pub thread_id: u64,
     pub post_id: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ScanResult {
     pub threads: Vec<ThreadLink>,
     pub posts: Vec<PostLink>,
@@ -132,7 +132,7 @@ pub fn post_folder_name(post_title: &str, post_id: u64, append_post_id: bool) ->
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ImageMime {
     Bmp,
     Gif,
