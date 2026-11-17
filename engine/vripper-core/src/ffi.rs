@@ -3,6 +3,8 @@
 //! Returned strings are allocated by Rust and must be released with
 //! `vripper_string_free`. The API never returns borrowed Rust memory.
 
+use crate::api::parse_thread_response;
+use crate::hosts::{resolve_host_html, HostId};
 use crate::scan_links;
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -14,6 +16,25 @@ fn into_c_string(value: String) -> *mut c_char {
     CString::new(value)
         .unwrap_or_else(|_| CString::new("{\"error\":\"interior NUL in result\"}").unwrap())
         .into_raw()
+}
+
+
+fn read_utf8(pointer: *const c_char, label: &str) -> Result<String, String> {
+    if pointer.is_null() {
+        return Err(format!("{label} pointer must not be null"));
+    }
+    let value = unsafe { CStr::from_ptr(pointer) };
+    value
+        .to_str()
+        .map(str::to_owned)
+        .map_err(|_| format!("{label} must be valid UTF-8"))
+}
+
+fn read_optional_utf8(pointer: *const c_char, label: &str) -> Result<Option<String>, String> {
+    if pointer.is_null() {
+        return Ok(None);
+    }
+    read_utf8(pointer, label).map(Some)
 }
 
 fn json_error(message: &str) -> String {
@@ -66,6 +87,95 @@ pub unsafe extern "C" fn vripper_scan_links_json(
             .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}")))
     }));
 
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native engine panicked")),
+    }
+}
+
+
+/// Parse the reference thread lookup XML response and return a JSON model.
+///
+/// # Safety
+/// Both arguments must point to valid NUL-terminated UTF-8 strings.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_parse_thread_response_json(
+    xml: *const c_char,
+    site_proxy: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let xml = match read_utf8(xml, "xml") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let site_proxy = match read_utf8(site_proxy, "site_proxy") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match parse_thread_response(&xml, &site_proxy) {
+            Ok(parsed) => serde_json::to_string(&parsed)
+                .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}"))),
+            Err(error) => json_error(&error),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native engine panicked")),
+    }
+}
+
+/// Resolve a captured host HTML page without performing network requests.
+///
+/// A null follow_up_html means the caller should execute the returned follow-up
+/// request using the central transport, then call this function again with the
+/// resulting HTML.
+///
+/// # Safety
+/// Every non-null pointer must reference a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_resolve_host_html_json(
+    host_id: u8,
+    source_url: *const c_char,
+    thumbnail_url: *const c_char,
+    html: *const c_char,
+    follow_up_html: *const c_char,
+    fetch_original_imx_filename: u8,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let host = match HostId::try_from(host_id) {
+            Ok(host) => host,
+            Err(error) => return json_error(&error),
+        };
+        let source_url = match read_utf8(source_url, "source_url") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let thumbnail_url = match read_utf8(thumbnail_url, "thumbnail_url") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let html = match read_utf8(html, "html") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let follow_up_html = match read_optional_utf8(follow_up_html, "follow_up_html") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+
+        match resolve_host_html(
+            host,
+            &source_url,
+            &thumbnail_url,
+            &html,
+            follow_up_html.as_deref(),
+            fetch_original_imx_filename != 0,
+        ) {
+            Ok(resolution) => serde_json::to_string(&resolution)
+                .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}"))),
+            Err(error) => json_error(&error),
+        }
+    }));
     match result {
         Ok(value) => into_c_string(value),
         Err(_) => into_c_string(json_error("native engine panicked")),
