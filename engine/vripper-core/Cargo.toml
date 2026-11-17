@@ -15,6 +15,9 @@ serde.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
 url.workspace = true
+tokio.workspace = true
+futures-util.workspace = true
+tempfile.workspace = true
 
 [lib]
 crate-type = ["rlib", "cdylib", "staticlib"]
