@@ -369,6 +369,7 @@ async fn run_queue(
                     }
                     Command::Import(entries, reply) => {
                         let mut inserted = Vec::<(u64, i64)>::new();
+                        let mut new_legacy_markers = Vec::<i64>::new();
                         for entry in entries {
                             if legacy_image_ids.contains(&entry.image_id) {
                                 continue;
@@ -377,6 +378,7 @@ async fn run_queue(
                                 && job.destination_directory == entry.job.destination_directory
                                 && job.image_index_zero_based == entry.job.image_index_zero_based) {
                                 legacy_image_ids.insert(entry.image_id);
+                                new_legacy_markers.push(entry.image_id);
                                 continue;
                             }
                             let id = NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed);
@@ -391,12 +393,15 @@ async fn run_queue(
                             jobs.insert(id, job);
                             inserted.push((id, entry.image_id));
                             legacy_image_ids.insert(entry.image_id);
+                            new_legacy_markers.push(entry.image_id);
                         }
                         if let Some(store) = &store {
                             if let Err(error) = store.save(&jobs, &items, &legacy_image_ids) {
-                                for (id, image_id) in inserted.iter().copied() {
+                                for (id, _) in inserted.iter().copied() {
                                     jobs.remove(&id);
                                     items.remove(&id);
+                                }
+                                for image_id in new_legacy_markers {
                                     legacy_image_ids.remove(&image_id);
                                 }
                                 let _ = reply.send(Err(error));
