@@ -143,6 +143,7 @@ Shipped applications must not require a separately installed Java Runtime or JVM
 - [Persistence schema audit](docs/PERSISTENCE_SCHEMA_AUDIT.md)
 - [Network and proxy settings](docs/NETWORK_SETTINGS.md)
 - [Architecture decision record](docs/ADR-0001-rust-flutter.md)
+- [Practical Windows/Android test plan](docs/PRACTICAL_TEST_PLAN.md)
 
 ## Reference project and licensing
 
