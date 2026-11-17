@@ -304,7 +304,7 @@ pub fn read_legacy_catalog(path: &Path) -> Result<serde_json::Value, DatabaseErr
 pub fn native_catalog(path: &Path, replacement: Option<&str>) -> Result<serde_json::Value, DatabaseError> {
     let mut connection = Connection::open(path)?;
     connection.busy_timeout(Duration::from_secs(5))?;
-    connection.execute_batch("CREATE TABLE IF NOT EXISTS NATIVE_CATALOG (ID INTEGER PRIMARY KEY CHECK(ID=1), DATA TEXT NOT NULL)")?;
+    connection.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; CREATE TABLE IF NOT EXISTS NATIVE_CATALOG (ID INTEGER PRIMARY KEY CHECK(ID=1), DATA TEXT NOT NULL)")?;
     if let Some(json) = replacement {
         let value: serde_json::Value = serde_json::from_str(json)
             .map_err(|_| DatabaseError::Integrity("invalid catalog JSON".into()))?;
