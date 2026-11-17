@@ -862,7 +862,9 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key});
+  const SettingsDialog({super.key, required this.initialNetworkSettings});
+  final Map<String, dynamic> initialNetworkSettings;
+
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
 }
@@ -873,13 +875,33 @@ class _SettingsDialogState extends State<SettingsDialog> {
     'Automation', 'Viper', 'Hosts', 'Posts', 'Viewers',
   ];
   int _selected = 0;
-  String _proxyMode = 'Disabled';
-  String _proxyProtocol = 'HTTP';
+  late String _proxyMode;
+  late String _proxyProtocol;
   final _proxyHost = TextEditingController();
   final _proxyPort = TextEditingController();
   final _proxyUser = TextEditingController();
   final _proxyPassword = TextEditingController();
   final _bypass = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final network = widget.initialNetworkSettings['network'] as Map? ?? const {};
+    final mode = network['mode']?.toString() ?? 'disabled';
+    _proxyMode = switch (mode) {
+      'system' => 'System',
+      'manual' => 'Manual',
+      _ => 'Disabled',
+    };
+    final manual = network['manual_proxy'] as Map? ?? const {};
+    final protocol = manual['protocol']?.toString() ?? 'http';
+    _proxyProtocol = protocol.toUpperCase();
+    _proxyHost.text = manual['host']?.toString() ?? '';
+    _proxyPort.text = manual['port']?.toString() ?? '';
+    _proxyUser.text = (widget.initialNetworkSettings['proxy_credentials'] as Map?)?['username']?.toString() ?? '';
+    _proxyPassword.text = (widget.initialNetworkSettings['proxy_credentials'] as Map?)?['password']?.toString() ?? '';
+    _bypass.text = (network['bypass_hosts'] as List? ?? const []).join('\n');
+  }
 
   @override
   void dispose() {
@@ -952,7 +974,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   children: [
                     TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                     const SizedBox(width: 8),
-                    FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Save')),
+                    FilledButton(onPressed: _saveSettings, child: const Text('Save')),
                   ],
                 ),
               ),
@@ -960,6 +982,56 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ),
         ),
       );
+
+
+  void _saveSettings() {
+    final host = _proxyHost.text.trim();
+    final port = int.tryParse(_proxyPort.text.trim());
+    final username = _proxyUser.text.trim();
+    final password = _proxyPassword.text;
+    if (_proxyMode == 'Manual') {
+      if (host.isEmpty || port == null || port < 1 || port > 65535) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a valid proxy host and port (1–65535).')),
+        );
+        return;
+      }
+      if (username.isEmpty != password.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Proxy username and password must be provided together.')),
+        );
+        return;
+      }
+    }
+    final mode = switch (_proxyMode) {
+      'System' => 'system',
+      'Manual' => 'manual',
+      _ => 'disabled',
+    };
+    final bypass = _bypass.text
+        .split(RegExp(r'[,\n]'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    final manualProxy = host.isEmpty || port == null
+        ? null
+        : {
+            'protocol': _proxyProtocol.toLowerCase(),
+            'host': host,
+            'port': port,
+          };
+    final credentials = username.isNotEmpty && password.isNotEmpty
+        ? {'username': username, 'password': password}
+        : null;
+    Navigator.pop(context, {
+      'network': {
+        'mode': mode,
+        'manual_proxy': manualProxy,
+        'bypass_hosts': bypass,
+      },
+      'proxy_credentials': credentials,
+    });
+  }
 
   Widget _networkSettings() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
