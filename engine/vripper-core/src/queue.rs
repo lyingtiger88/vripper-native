@@ -326,7 +326,7 @@ async fn run_queue(
         );
 
         if let Some(store) = &store {
-            if store.save(&jobs, &items).is_err() { break; }
+            if store.save(&jobs, &items, &legacy_image_ids).is_err() { break; }
         }
         tokio::select! {
             command = commands.recv() => {
@@ -356,7 +356,7 @@ async fn run_queue(
                         });
                         jobs.insert(id, job.clone());
                         if let Some(store) = &store {
-                            if let Err(error) = store.save(&jobs, &items) {
+                            if let Err(error) = store.save(&jobs, &items, &legacy_image_ids) {
                                 jobs.remove(&id);
                                 items.remove(&id);
                                 let _ = reply.send(Err(error));
@@ -389,7 +389,7 @@ async fn run_queue(
                             legacy_image_ids.insert(entry.image_id);
                         }
                         if let Some(store) = &store {
-                            if let Err(error) = store.save(&jobs, &items) {
+                            if let Err(error) = store.save(&jobs, &items, &legacy_image_ids) {
                                 for (id, image_id) in inserted.iter().copied() {
                                     jobs.remove(&id);
                                     items.remove(&id);
@@ -478,7 +478,7 @@ async fn run_queue(
                         workers.abort_all();
                         while workers.join_next().await.is_some() {}
                         if let Some(store) = &store {
-                            if store.save(&jobs, &items).is_err() { break; }
+                            if store.save(&jobs, &items, &legacy_image_ids).is_err() { break; }
                         }
                         drop(store);
                         let _ = reply.send(());
