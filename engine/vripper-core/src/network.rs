@@ -9,6 +9,9 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
+use std::time::Duration;
+
+pub const REFERENCE_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -122,14 +125,30 @@ pub fn build_http_client(
     credentials: Option<&ProxyCredentials>,
     system_proxy: Option<&ProxyEndpoint>,
 ) -> Result<Client, ProxyError> {
+    build_http_client_with_timeout(
+        config,
+        credentials,
+        system_proxy,
+        Duration::from_secs(30),
+    )
+}
+
+pub fn build_http_client_with_timeout(
+    config: &NetworkConfig,
+    credentials: Option<&ProxyCredentials>,
+    system_proxy: Option<&ProxyEndpoint>,
+    timeout: Duration,
+) -> Result<Client, ProxyError> {
     match config.mode {
         ProxyMode::Disabled => Client::builder()
             .no_proxy()
+            .user_agent(REFERENCE_USER_AGENT)
+            .timeout(timeout)
             .build()
             .map_err(|error| ProxyError::ClientBuild(error.to_string())),
         ProxyMode::System => {
             let endpoint = system_proxy.ok_or(ProxyError::SystemProxyUnavailable)?;
-            build_proxied_client(endpoint, &config.bypass_hosts, credentials)
+            build_proxied_client(endpoint, &config.bypass_hosts, credentials, timeout)
         }
         ProxyMode::Manual => {
             let endpoint = config
@@ -145,6 +164,7 @@ fn build_proxied_client(
     endpoint: &ProxyEndpoint,
     bypass_hosts: &[String],
     credentials: Option<&ProxyCredentials>,
+    timeout: Duration,
 ) -> Result<Client, ProxyError> {
     endpoint.validate()?;
 
@@ -193,6 +213,8 @@ fn build_proxied_client(
     Client::builder()
         .no_proxy()
         .proxy(proxy)
+        .user_agent(REFERENCE_USER_AGENT)
+        .timeout(timeout)
         .build()
         .map_err(|error| ProxyError::ClientBuild(error.to_string()))
 }
