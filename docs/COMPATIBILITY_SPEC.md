@@ -65,3 +65,13 @@ Do not improve output naming until reference vectors exist. Document and test an
 - Desktop: Windows/Linux x86-64; macOS x86-64 and ARM64.
 - Mobile: Android ARM64 and iOS ARM64.
 - Install/update/launch/download/pause/stop/resume/view/settings/uninstall smoke tests on each platform.
+
+
+## Network and proxy compatibility
+- Add a distinct Network section to Settings; preserve the existing Connection section and its concurrency/timeout/retry controls.
+- Proxy modes: Disabled (default), System, Manual (HTTP/HTTPS/SOCKS5).
+- Manual mode supports endpoint, optional authentication and bypass list.
+- Apply the selected mode consistently to login, lookup, host resolution and image download requests.
+- Never silently fall back from System/Manual proxy to direct connections.
+- Store credentials only in platform secure storage; never plaintext in config/database/logs/FFI reads.
+- See `NETWORK_SETTINGS.md` for full requirements and test matrix.
