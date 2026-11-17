@@ -37,7 +37,7 @@ pub struct CoordinatorConfig {
     pub fetch_original_imx_filename: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
 pub struct CoordinatorSummary {
     pub thread_lookups: usize,
     pub post_lookups: usize,
@@ -48,19 +48,6 @@ pub struct CoordinatorSummary {
     pub queue_job_ids: Vec<u64>,
 }
 
-impl Default for CoordinatorSummary {
-    fn default() -> Self {
-        Self {
-            thread_lookups: 0,
-            post_lookups: 0,
-            posts_discovered: 0,
-            images_queued: 0,
-            invalid_links: Vec::new(),
-            errors: Vec::new(),
-            queue_job_ids: Vec::new(),
-        }
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum CoordinatorError {
