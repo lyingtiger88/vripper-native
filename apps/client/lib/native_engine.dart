@@ -181,4 +181,92 @@ class NativeEngine {
     return decoded;
   }
 
+
+  int createCoordinator(Map<String, dynamic> config) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final pointer = jsonEncode(config).toNativeUtf8().cast<Int8>();
+    try {
+      final response = _decodeObject(_createCoordinator!(pointer));
+      final handle = response['handle'];
+      if (handle is! int) throw const FormatException('Coordinator handle missing');
+      return handle;
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  Future<int> createCoordinatorInBackground(Map<String, dynamic> config) =>
+      Isolate.run(() => NativeEngine.instance.createCoordinator(config));
+
+  Map<String, dynamic> scanAndQueue(int handle, String input, List<String> bases) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final inputPointer = input.toNativeUtf8().cast<Int8>();
+    final basesPointer = jsonEncode(bases).toNativeUtf8().cast<Int8>();
+    try {
+      return _decodeObject(_scanAndQueue!(handle, inputPointer, basesPointer));
+    } finally {
+      malloc.free(inputPointer);
+      malloc.free(basesPointer);
+    }
+  }
+
+  Future<Map<String, dynamic>> scanAndQueueInBackground(
+    int handle,
+    String input,
+    List<String> bases,
+  ) =>
+      Isolate.run(() => NativeEngine.instance.scanAndQueue(handle, input, bases));
+
+  Map<String, dynamic> queueSnapshot(int handle) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeObject(_snapshot!(handle));
+  }
+
+  Map<String, dynamic> stopJob(int handle, int jobId) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeObject(_stop!(handle, jobId));
+  }
+
+  Map<String, dynamic> stopAll(int handle) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeObject(_stopAll!(handle));
+  }
+
+  Map<String, dynamic> moveJob(int handle, int jobId, String movement) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final pointer = movement.toNativeUtf8().cast<Int8>();
+    try {
+      return _decodeObject(_move!(handle, jobId, pointer));
+    } finally {
+      malloc.free(pointer);
+    }
+  }
+
+  Map<String, dynamic> clearFinished(int handle) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeObject(_clearFinished!(handle));
+  }
+
+  Map<String, dynamic> pollEvent(int handle, int timeoutMs) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeObject(_pollEvent!(handle, timeoutMs));
+  }
+
+  Future<Map<String, dynamic>> pollEventInBackground(int handle, int timeoutMs) =>
+      Isolate.run(() => NativeEngine.instance.pollEvent(handle, timeoutMs));
+
+  Map<String, dynamic> destroyCoordinator(int handle) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeObject(_destroyCoordinator!(handle));
+  }
+
 }
