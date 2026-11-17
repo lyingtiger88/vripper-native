@@ -77,6 +77,22 @@ jobs:
       - name: Generate Android runner
         working-directory: apps/client
         run: flutter create --platforms=android --org com.vripper .
+      - name: Set Android compile SDK required by Flutter plugins
+        working-directory: apps/client
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          for path in candidates:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              text = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+              text = text.replace("compileSdkVersion flutter.compileSdkVersion", "compileSdkVersion 36")
+              path.write_text(text)
+              print(f"Configured compile SDK 36 in {path}")
+          PY
       - name: Build native Rust engine for ARM64
         run: cargo ndk -t arm64-v8a -o apps/client/android/app/src/main/jniLibs build --release -p vripper-core
       - name: Build Android APK
