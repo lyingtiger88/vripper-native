@@ -1,6 +1,6 @@
 # VRipper Native — Roadmap
 
-**Status:** Phase 0 in progress  
+**Status:** Native vertical slice implemented; parity and platform integration in progress  
 **Reference:** dev-claw/vripper-project  
 **Target:** Rust native engine + Flutter UI  
 **Compatibility policy:** Preserve reference behavior; this is a technology migration, not a product redesign.
@@ -47,13 +47,15 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 
 ## Phase 1 — Native architecture foundation
 
-- [x] Initialize Rust workspace and core crate; deterministic link/path primitives, host resolver layer and XML response parser authored (CI verification pending).
-- [ ] Define versioned Flutter↔Rust FFI contracts, typed events and error model.
-- [ ] Define async runtime, cancellation, backpressure and bounded concurrency.
+- [x] Initialize Rust workspace and core crate boundaries.
+- [x] Define the versioned Flutter↔Rust C ABI and JSON request/response contracts.
+- [x] Implement a shared Tokio runtime, coordinator lifecycle and queue event polling.
+- [x] Implement bounded queue concurrency, stop/clear/reorder controls and retry baseline.
+- [x] Create the Flutter shell and native library loading path.
+- [x] Add CI checks for Rust formatting, unit tests and Clippy; current Rust checks pass.
+- [ ] Replace JSON-shaped FFI errors with a fully typed, versioned event/error contract.
 - [ ] Define SQLite schema and data import plan.
 - [ ] Define secure credential/cookie storage adapters.
-- [ ] Create minimal native app and engine skeleton.
-- [ ] Add CI checks for formatting, linting and unit tests.
 
 **Exit criteria**
 - [ ] Engine initializes and shuts down cleanly.
@@ -63,18 +65,19 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 
 ## Phase 2 — Rust engine parity
 
-- [ ] Port URL validation and link classification.
-- [ ] Port thread/post discovery and response parsing.
-- [ ] Port host registry and every supported host resolver.
-- [ ] Port HTTP sessions, cookies, headers, redirects and response validation.
-- [ ] Port queue, per-host/global concurrency, pause/stop/restart, retry and error semantics.
-- [ ] Port temporary-file handling, MIME validation, naming and directory layout.
-- [ ] Port database entities, task/event reporting, logs and cache behavior.
-- [x] Implement a centralized Rust proxy-aware HTTP client builder with Disabled/System/Manual modes and HTTP/HTTPS/SOCKS5h support.
-- [ ] Wire the shared client into every login, lookup, host-resolution and image-download request.
-- [ ] Implement OS system-proxy discovery and secure credential storage adapters.
-- [ ] Implement proxy connection testing and secure credential handling.
-- [ ] Pass parser, host, queue, lifecycle, persistence and output compatibility tests.
+- [x] Implement URL validation and link classification baseline.
+- [x] Implement thread/post lookup request path and XML response parsing baseline.
+- [x] Implement initial resolver paths for the 16 audited host types.
+- [x] Implement shared HTTP transport, cookie handling and proxy-aware client construction baseline.
+- [x] Wire thread/post lookups and image downloads through the shared transport in the native coordinator.
+- [x] Implement bounded queue scheduling, stop, reorder, event reporting and retry baseline.
+- [x] Implement streamed temporary-file downloads and initial output naming/path rules.
+- [ ] Verify all resolvers against authorized host fixtures and reference behavior.
+- [ ] Complete MIME/content validation, overwrite policy, recovery and filename edge cases.
+- [ ] Implement database persistence, task history, logs and cache behavior.
+- [ ] Implement OS-native system proxy discovery and connection testing.
+- [ ] Implement secure credential/cookie storage and log redaction.
+- [ ] Pass full parser, host, queue, lifecycle and output compatibility suites.
 
 **Exit criteria**
 - [ ] Engine parity fixtures pass.
@@ -83,16 +86,15 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 
 ## Phase 3 — Flutter UI parity
 
-- [ ] Reproduce desktop shell, tabs, toolbar, status and error regions.
-- [ ] Reproduce Posts, Threads, Tasks and Logs views.
-- [ ] Reproduce dialogs, settings, filters, tables, grids, context actions and keyboard behavior.
-- [x] Add a distinct Settings → Network section prototype while preserving the existing Connection section.
-- [ ] Persist and validate Network settings through the native configuration/secure-storage bridge.
-- [ ] Add Disabled / System / Manual proxy modes and HTTP / HTTPS / SOCKS5 settings.
-- [ ] Add manual endpoint, optional authentication, bypass list and Test connection feedback.
-- [ ] Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap, cache and geometry persistence.
-- [ ] Adapt only layout constraints required by mobile screens; do not remove workflows or change semantics.
-- [ ] Complete screen-by-screen and interaction-by-interaction comparison.
+- [x] Establish the Flutter shell and primary Posts/Threads/Tasks/Logs navigation.
+- [x] Connect initial link scanning, queue controls, queue status and task list to the native coordinator.
+- [x] Add Settings → Network with Disabled / System / Manual modes, protocol, endpoint, credentials and bypass fields.
+- [ ] Persist settings securely and implement native OS proxy discovery.
+- [ ] Complete Posts/Threads/Logs data views and reference-equivalent interactions.
+- [ ] Reproduce filters, tables, grids, context actions, dialogs and keyboard behavior.
+- [ ] Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap and cache behavior.
+- [ ] Adapt mobile layouts while preserving workflows and semantics.
+- [ ] Pass screen-by-screen and interaction-by-interaction comparison.
 
 **Exit criteria**
 - [ ] Desktop UI matches the reference behavior and approved captures.
