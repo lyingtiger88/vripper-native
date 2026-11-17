@@ -1,6 +1,6 @@
 //! Parser for the XML response consumed by the reference ThreadLookupAPIResponseHandler.
 
-use crate::hosts::{host_for_url, HostId, HOST_REGISTRY};
+use crate::hosts::{host_for_url, HostId};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use std::collections::HashMap;
@@ -229,9 +229,6 @@ pub fn parse_thread_response(xml: &str, site_proxy: &str) -> Result<ParsedThread
         }
     }
 
-    // Keep the registry reference in this module so registry/host mapping is
-    // compile-time visible alongside the parser's host IDs.
-    let _registered_host_count = HOST_REGISTRY.len();
     Ok(state.finish())
 }
 
