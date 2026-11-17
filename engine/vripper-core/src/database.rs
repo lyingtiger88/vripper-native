@@ -77,7 +77,7 @@ fn quote_identifier(value: &str) -> String {
 
 fn integrity_check(connection: &Connection) -> Result<String, DatabaseError> {
     let result: String = connection.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
-    if result.to_ascii_lowercase() != "ok" {
+    if !result.eq_ignore_ascii_case("ok") {
         return Err(DatabaseError::Integrity(result));
     }
     Ok(result)
