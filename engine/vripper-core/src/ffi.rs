@@ -482,6 +482,66 @@ pub extern "C" fn vripper_coordinator_destroy_json(handle: u64) -> *mut c_char {
     }
 }
 
+/// Inspect a legacy VRipper SQLite database without modifying it.
+///
+/// # Safety
+/// path_json must point to a valid NUL-terminated UTF-8 filesystem path.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_database_inspect_json(
+    path_json: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let path = match read_utf8(path_json, "database_path") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match crate::database::inspect_legacy_database(std::path::Path::new(&path)) {
+            Ok(report) => serde_json::to_string(&report)
+                .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}"))),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("database inspection panicked")),
+    }
+}
+
+/// Import a legacy VRipper SQLite database into a new destination file.
+///
+/// The source is opened read-only. The destination must not already exist.
+///
+/// # Safety
+/// Both pointers must reference valid NUL-terminated UTF-8 filesystem paths.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_database_import_json(
+    source_json: *const c_char,
+    destination_json: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let source = match read_utf8(source_json, "source_database_path") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let destination = match read_utf8(destination_json, "destination_database_path") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match crate::database::import_legacy_database(
+            std::path::Path::new(&source),
+            std::path::Path::new(&destination),
+        ) {
+            Ok(report) => serde_json::to_string(&report)
+                .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}"))),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("database import panicked")),
+    }
+}
+
 /// Release a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety
