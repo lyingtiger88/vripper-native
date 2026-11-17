@@ -7,7 +7,7 @@ Reference source: `vripper-core/src/main/resources/db.changelog-master.xml`, ent
 - Database filename: `vripper.db`.
 - Location: VRipper application data directory.
 - Schema updates: Liquibase master changelog.
-- Native migration must copy the original database before opening it, inspect Liquibase history, validate row counts/relationships, and preserve the original file unchanged until acceptance.
+- Native migration must use the copy-first workflow in [DATABASE_COMPATIBILITY_AND_IMPORT.md](DATABASE_COMPATIBILITY_AND_IMPORT.md): open source read-only, inspect Liquibase history, create a SQLite online-backup snapshot, validate schema/row counts/relationships, and preserve the original file unchanged.
 
 ## Logical tables
 
@@ -88,3 +88,15 @@ Task states/categories require their enum definitions to be mapped before migrat
 - Preserve Liquibase changelog history or translate it to a versioned native migration ledger.
 - Treat TOKEN, cookies, Viper auth credentials and proxy credentials as secrets; do not expose them in logs or diagnostics.
 - Run migration on a backup copy and produce a verifiable before/after report.
+
+
+## Implementation status
+
+- [x] Rust read-only inspection and SQLite online-backup importer added.
+- [x] Core-table validation, integrity check, schema/column and row-count comparison added.
+- [x] FFI and Flutter background wrappers added.
+- [x] Settings → Database selection/inspection/import interface added.
+- [ ] Connect the imported database to the runtime repositories and download coordinator.
+- [ ] Validate against real Java database copies from each supported schema generation.
+
+See [Database compatibility and Java import design](DATABASE_COMPATIBILITY_AND_IMPORT.md) for the architecture, guarantees and acceptance tests.
