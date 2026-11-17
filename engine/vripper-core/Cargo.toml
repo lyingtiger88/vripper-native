@@ -11,3 +11,4 @@ regex.workspace = true
 thiserror.workspace = true
 scraper.workspace = true
 url.workspace = true
+quick-xml.workspace = true
