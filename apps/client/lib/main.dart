@@ -209,11 +209,13 @@ class _HomePageState extends State<HomePage> {
         final event = await NativeEngine.instance.pollEventInBackground(handle, 900);
         if (event.containsKey('timeout')) continue;
         final snapshot = event['snapshot'];
-        if (snapshot is Map && mounted) {
+        if (snapshot is Map && mounted && _coordinatorHandle == handle) {
           setState(() => _queueSnapshot = Map<String, dynamic>.from(snapshot));
         }
       } catch (error) {
-        if (mounted) setState(() => _coordinatorError = error.toString());
+        if (mounted && _coordinatorHandle == handle) {
+          setState(() => _coordinatorError = error.toString());
+        }
         break;
       }
     }
