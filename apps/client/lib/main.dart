@@ -167,7 +167,7 @@ class _HomePageState extends State<HomePage> {
       await Directory(temporary.path).create(recursive: true);
       final config = <String, dynamic>{
         'network': _networkSettings,
-        'system_proxy': (_networkSettings['network'] as Map?)?['mode'] == 'system'
+        'system_proxy': _networkSettings['mode'] == 'system'
             ? _environmentProxyEndpoint()
             : null,
         'proxy_credentials': (_networkSettings['mode'] == 'system'
