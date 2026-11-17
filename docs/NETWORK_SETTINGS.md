@@ -74,3 +74,17 @@ No network call may silently bypass the selected proxy. Exceptions must be expli
 
 ## UI parity and layout
 The new Network item is an additive sidebar section. Existing Appearance, Downloads, Connection, System, Automation, Viper, Hosts, Posts and Viewers sections remain present and retain their behavior. Use the same navigation button style, spacing, section title and scrollable content region as the existing settings sections.
+
+
+## Implementation progress (2026-11-17)
+
+A Rust transport foundation is now authored in `engine/vripper-core/src/network.rs`:
+- Typed Disabled / System / Manual modes.
+- HTTP, HTTPS and SOCKS5h proxy endpoint construction.
+- Direct mode explicitly disables ambient proxy configuration.
+- System mode returns an explicit error if the OS adapter provides no proxy; it never silently falls back to direct.
+- Optional credentials are passed ephemerally; Debug output redacts passwords and the config model does not contain credential fields.
+- Bypass host list is passed to reqwest proxy configuration.
+- Unit tests cover direct mode, missing system proxy, missing manual endpoint, invalid port, all three proxy protocols, partial credentials and secret redaction.
+
+**Not yet complete:** this builder is not yet wired into every login/lookup/host/download request; OS system-proxy discovery, platform secure credential storage, live connection test, FFI and Flutter persistence are pending. The Flutter Network section is currently a UI prototype and explicitly reports that connection testing is not active yet.
