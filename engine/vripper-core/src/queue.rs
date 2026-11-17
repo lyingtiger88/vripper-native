@@ -225,18 +225,18 @@ async fn run_queue(
     let mut running = HashMap::<u64, RunningJob>::new();
     let mut items = HashMap::<u64, QueueItemSnapshot>::new();
     let mut workers = JoinSet::<(u64, Result<CompletedImage, PipelineError>)>::new();
-    let global_limit = settings.global_limit();
-    let per_host_limit = settings.per_host_limit();
+    let scheduler = QueueScheduler {
+        pipeline: &pipeline,
+        global_limit: settings.global_limit(),
+        per_host_limit: settings.per_host_limit(),
+    };
 
     loop {
-        schedule_pending(
-            &pipeline,
+        scheduler.schedule_pending(
             &mut pending,
             &mut running,
             &mut items,
             &mut workers,
-            global_limit,
-            per_host_limit,
             &events,
         );
 
@@ -370,55 +370,61 @@ async fn run_queue(
     }
 }
 
-fn schedule_pending(
-    pipeline: &HostPipeline,
-    pending: &mut VecDeque<QueueJob>,
-    running: &mut HashMap<u64, RunningJob>,
-    items: &mut HashMap<u64, QueueItemSnapshot>,
-    workers: &mut JoinSet<(u64, Result<CompletedImage, PipelineError>)>,
+struct QueueScheduler<'a> {
+    pipeline: &'a HostPipeline,
     global_limit: usize,
     per_host_limit: usize,
-    events: &broadcast::Sender<QueueEvent>,
-) {
-    while running.len() < global_limit {
-        let mut host_counts = HashMap::<HostId, usize>::new();
-        for active in running.values() {
-            *host_counts.entry(active.host).or_default() += 1;
-        }
-        let Some(position) = pending
-            .iter()
-            .position(|job| host_counts.get(&job.host).copied().unwrap_or(0) < per_host_limit)
-        else {
-            break;
-        };
-        let Some(job) = pending.remove(position) else {
-            break;
-        };
+}
 
-        if let Some(item) = items.get_mut(&job.id) {
-            item.status = QueueStatus::Running;
-            item.queue_rank = None;
+impl QueueScheduler<'_> {
+    fn schedule_pending(
+        &self,
+        pending: &mut VecDeque<QueueJob>,
+        running: &mut HashMap<u64, RunningJob>,
+        items: &mut HashMap<u64, QueueItemSnapshot>,
+        workers: &mut JoinSet<(u64, Result<CompletedImage, PipelineError>)>,
+        events: &broadcast::Sender<QueueEvent>,
+    ) {
+        while running.len() < global_limit {
+            let mut host_counts = HashMap::<HostId, usize>::new();
+            for active in running.values() {
+                *host_counts.entry(active.host).or_default() += 1;
+            }
+            let Some(position) = pending
+                .iter()
+                .position(|job| host_counts.get(&job.host).copied().unwrap_or(0) < per_host_limit)
+            else {
+                break;
+            };
+            let Some(job) = pending.remove(position) else {
+                break;
+            };
+    
+            if let Some(item) = items.get_mut(&job.id) {
+                item.status = QueueStatus::Running;
+                item.queue_rank = None;
+            }
+            let id = job.id;
+            let host = job.host;
+            let worker_pipeline = pipeline.clone();
+            let worker_job = job.clone();
+            let abort = workers.spawn(async move {
+                let result = worker_pipeline
+                    .download_image(
+                        worker_job.host,
+                        &worker_job.source_url,
+                        &worker_job.thumbnail_url,
+                        worker_job.image_index_zero_based,
+                        worker_job.force_order,
+                        &worker_job.destination_directory,
+                    )
+                    .await;
+                (worker_job.id, result)
+            });
+            running.insert(id, RunningJob { host, abort });
+            update_pending_ranks(pending, items);
+            publish(events, QueueEventKind::Started, items.get(&id).cloned(), pending, running, items);
         }
-        let id = job.id;
-        let host = job.host;
-        let worker_pipeline = pipeline.clone();
-        let worker_job = job.clone();
-        let abort = workers.spawn(async move {
-            let result = worker_pipeline
-                .download_image(
-                    worker_job.host,
-                    &worker_job.source_url,
-                    &worker_job.thumbnail_url,
-                    worker_job.image_index_zero_based,
-                    worker_job.force_order,
-                    &worker_job.destination_directory,
-                )
-                .await;
-            (worker_job.id, result)
-        });
-        running.insert(id, RunningJob { host, abort });
-        update_pending_ranks(pending, items);
-        publish(events, QueueEventKind::Started, items.get(&id).cloned(), pending, running, items);
     }
 }
 
