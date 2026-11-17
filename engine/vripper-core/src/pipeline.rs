@@ -179,7 +179,11 @@ impl HostPipeline {
         match resolution {
             HostResolution::Resolved(image) => Ok(image),
             HostResolution::FollowUp(request) => {
-                let follow_up_html = self.transport.execute_follow_up(&request).await?;
+                let mut follow_up_request = request;
+                if follow_up_request.referer.is_none() {
+                    follow_up_request.referer = Some(DEFAULT_REFERER.to_owned());
+                }
+                let follow_up_html = self.transport.execute_follow_up(&follow_up_request).await?;
                 let second = resolve_host_html(
                     host,
                     source_url,
