@@ -154,12 +154,14 @@ fn build_proxied_client(
         if credentials.username.is_empty() || credentials.password.is_empty() {
             return Err(ProxyError::IncompleteCredentials);
         }
-        proxy_url
-            .set_username(&credentials.username)
-            .map_err(|_| ProxyError::InvalidProxyUrl("invalid proxy username".into()))?;
-        proxy_url
-            .set_password(Some(&credentials.password))
-            .map_err(|_| ProxyError::InvalidProxyUrl("invalid proxy password".into()))?;
+        if endpoint.protocol == ProxyProtocol::Socks5 {
+            proxy_url
+                .set_username(&credentials.username)
+                .map_err(|_| ProxyError::InvalidProxyUrl("invalid proxy username".into()))?;
+            proxy_url
+                .set_password(Some(&credentials.password))
+                .map_err(|_| ProxyError::InvalidProxyUrl("invalid proxy password".into()))?;
+        }
     }
 
     let mut proxy = Proxy::all(proxy_url.as_str())
@@ -212,7 +214,7 @@ mod tests {
             ..NetworkConfig::default()
         };
         assert_eq!(
-            build_http_client(&config, None, None).unwrap_err(),
+            build_http_client(&config, None, None).err().unwrap(),
             ProxyError::SystemProxyUnavailable
         );
     }
@@ -224,7 +226,7 @@ mod tests {
             ..NetworkConfig::default()
         };
         assert_eq!(
-            build_http_client(&missing, None, None).unwrap_err(),
+            build_http_client(&missing, None, None).err().unwrap(),
             ProxyError::ManualProxyMissing
         );
 
@@ -238,7 +240,7 @@ mod tests {
             bypass_hosts: Vec::new(),
         };
         assert_eq!(
-            build_http_client(&invalid_port, None, None).unwrap_err(),
+            build_http_client(&invalid_port, None, None).err().unwrap(),
             ProxyError::InvalidPort
         );
     }
@@ -278,7 +280,7 @@ mod tests {
             password: String::new(),
         };
         assert_eq!(
-            build_http_client(&config, Some(&credentials), None).unwrap_err(),
+            build_http_client(&config, Some(&credentials), None).err().unwrap(),
             ProxyError::IncompleteCredentials
         );
     }
