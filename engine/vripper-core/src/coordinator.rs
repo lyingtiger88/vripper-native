@@ -71,18 +71,33 @@ pub enum CoordinatorError {
     #[error(transparent)]
     Lookup(#[from] ViperApiError),
     #[error(transparent)]
-    Pipeline(#[from] PipelineError),
-    #[error(transparent)]
     Queue(#[from] QueueError),
+}
+
+struct DownloadOptions {
+    download_path: PathBuf,
+    forum_subdirectory: bool,
+    thread_sublocation: bool,
+    append_post_id: bool,
+    force_order: bool,
 }
 
 pub struct DownloadCoordinator {
     api: ViperApi,
     queue: QueueManager,
+    options: DownloadOptions,
 }
 
 impl DownloadCoordinator {
     pub async fn new(config: CoordinatorConfig) -> Result<Self, CoordinatorError> {
+        let options = DownloadOptions {
+            download_path: config.download_path.clone(),
+            forum_subdirectory: config.forum_subdirectory,
+            thread_sublocation: config.thread_sublocation,
+            append_post_id: config.append_post_id,
+            force_order: config.force_order,
+        };
+
         let transport = HttpTransport::new_with_timeout(
             &config.network,
             config.proxy_credentials.as_ref(),
@@ -117,7 +132,7 @@ impl DownloadCoordinator {
         );
         let queue = QueueManager::new(pipeline, config.queue_settings);
 
-        Ok(Self { api, queue })
+        Ok(Self { api, queue, options })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<crate::queue::QueueEvent> {
@@ -200,16 +215,16 @@ impl DownloadCoordinator {
                 summary.posts_discovered += 1;
 
                 let base_directory = calculate_download_directory(
-                    &self.config.download_path,
+                    &self.options.download_path,
                     &post.forum,
                     &post.thread_title,
-                    self.config.forum_subdirectory,
-                    self.config.thread_sublocation,
+                    self.options.forum_subdirectory,
+                    self.options.thread_sublocation,
                 );
                 let folder = post_folder_name(
                     &post.title,
                     post.post_id.max(0) as u64,
-                    self.config.append_post_id,
+                    self.options.append_post_id,
                 );
                 let destination_directory = base_directory.join(folder);
 
@@ -220,7 +235,7 @@ impl DownloadCoordinator {
                         source_url: image.main_url,
                         thumbnail_url: image.thumbnail_url,
                         image_index_zero_based: index,
-                        force_order: self.config.force_order,
+                        force_order: self.options.force_order,
                         destination_directory: destination_directory.clone(),
                     };
                     match self.queue.add(job).await {
