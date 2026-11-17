@@ -29,6 +29,23 @@ char *vripper_resolve_host_html_json(
     uint8_t fetch_original_imx_filename
 );
 
+
+/* Coordinator API. Configuration and input arguments are UTF-8 JSON strings.
+ * Handles are process-local and must be destroyed before application shutdown. */
+char *vripper_coordinator_create_json(const char *config_json);
+char *vripper_coordinator_scan_and_queue_json(
+    uint64_t handle,
+    const char *input,
+    const char *configured_bases_json
+);
+char *vripper_coordinator_snapshot_json(uint64_t handle);
+char *vripper_coordinator_stop_json(uint64_t handle, uint64_t job_id);
+char *vripper_coordinator_stop_all_json(uint64_t handle);
+char *vripper_coordinator_move_json(uint64_t handle, uint64_t job_id, const char *movement);
+char *vripper_coordinator_clear_finished_json(uint64_t handle);
+char *vripper_coordinator_poll_event_json(uint64_t handle, uint64_t timeout_ms);
+char *vripper_coordinator_destroy_json(uint64_t handle);
+
 /* Release any non-NULL string returned by this library exactly once. */
 void vripper_string_free(char *value);
 
