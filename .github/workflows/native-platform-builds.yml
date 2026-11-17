@@ -39,11 +39,10 @@ jobs:
         run: |
           $release = "apps/client/build/windows/x64/runner/Release"
           Copy-Item "target/x86_64-pc-windows-msvc/release/vripper_core.dll" "$release/vripper_core.dll"
-          Compress-Archive -Path "$release/*" -DestinationPath "vripper-native-windows-x64.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
           name: vripper-native-windows-x64
-          path: vripper-native-windows-x64.zip
+          path: apps/client/build/windows/x64/runner/Release/
           if-no-files-found: error
 
   android-arm64:
