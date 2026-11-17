@@ -3,22 +3,23 @@
 use crate::hosts::{host_for_url, HostId};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
+use serde::Serialize;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedImage {
     pub main_url: String,
     pub thumbnail_url: String,
     pub host: HostId,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedHostCount {
     pub host: HostId,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedPost {
     pub thread_id: i64,
     pub thread_title: String,
@@ -33,7 +34,7 @@ pub struct ParsedPost {
     pub images: Vec<ParsedImage>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedThread {
     pub thread_id: i64,
     pub title: String,
