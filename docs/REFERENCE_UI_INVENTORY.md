@@ -138,3 +138,7 @@ Each section's individual controls, defaults, validation, persistence and depend
 
 ## UI parity rule
 Flutter implementation must not reinterpret the design. Use reference captures and scripted actions as the acceptance oracle. If a control cannot be represented identically on mobile, document a platform adaptation while preserving the same action and result.
+
+
+## New requested section: Network
+A separate **Network** item must be added to the Settings sidebar. It is distinct from the existing **Connection** section, which continues to control concurrency, timeout and retry settings. Network settings provide proxy mode selection (Disabled / System / Manual), manual HTTP/HTTPS/SOCKS5 endpoint and optional authentication, bypass list, Test connection feedback and secure credential handling. See `NETWORK_SETTINGS.md` for the complete behavior and acceptance criteria.
