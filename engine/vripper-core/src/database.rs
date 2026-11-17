@@ -13,11 +13,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 const REQUIRED_TABLES: &[&str] = &["POST", "IMAGE", "THREAD"];
-const KNOWN_LEGACY_TABLES: &[&str] = &[
-    "POST", "IMAGE", "THREAD", "METADATA", "TASK", "POST_ACTION",
-    "DATABASECHANGELOG", "DATABASECHANGELOGLOCK",
-];
-
 #[derive(Debug, Error)]
 pub enum DatabaseError {
     #[error("database path does not exist: {0}")]
