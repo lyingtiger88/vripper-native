@@ -4,8 +4,9 @@
 
 use regex::Regex;
 use scraper::{Html, Selector};
+use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[repr(u8)]
 pub enum HostId {
     Acidimg = 0,
@@ -59,13 +60,13 @@ pub fn host_for_url(url: &str) -> Option<HostId> {
         .map(|host| host.id)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum FollowUpMethod {
     Get,
     Post,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CookieMutation {
     pub name: String,
     pub value: String,
@@ -74,7 +75,7 @@ pub struct CookieMutation {
     pub max_age_seconds: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FollowUpRequest {
     pub method: FollowUpMethod,
     pub url: String,
@@ -83,7 +84,7 @@ pub struct FollowUpRequest {
     pub cookies: Vec<CookieMutation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedImage {
     pub name: String,
     pub image_url: String,
@@ -91,7 +92,7 @@ pub struct ResolvedImage {
     pub cookies: Vec<CookieMutation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum HostResolution {
     FollowUp(FollowUpRequest),
     Resolved(ResolvedImage),
