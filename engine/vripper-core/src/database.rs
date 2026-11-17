@@ -258,7 +258,6 @@ fn staging_path(destination: &Path, nonce: u128) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::params;
 
     fn legacy_fixture(path: &Path) {
         let connection = Connection::open(path).unwrap();
@@ -279,7 +278,6 @@ mod tests {
              INSERT INTO POST_ACTION VALUES (1, 7, 'REVIEW', 'DONE');
              INSERT INTO DATABASECHANGELOG VALUES ('001', 'author', 'changelog.xml', 1);"
         ).unwrap();
-        connection.execute("PRAGMA wal_checkpoint(FULL)", params![]).unwrap();
     }
 
     #[test]
