@@ -1,3 +1,4 @@
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'native_engine.dart';
 
@@ -601,21 +602,22 @@ class _SessionDialogState extends State<SessionDialog> {
         title: const Text('Change session'),
         content: SizedBox(
           width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile<String>(
-                value: 'Local',
-                groupValue: _mode,
-                title: const Text('Local'),
-                onChanged: (value) => setState(() => _mode = value!),
-              ),
-              RadioListTile<String>(
-                value: 'Remote',
-                groupValue: _mode,
-                title: const Text('Remote'),
-                onChanged: (value) => setState(() => _mode = value!),
-              ),
+          child: RadioGroup<String>(
+            groupValue: _mode,
+            onChanged: (value) {
+              if (value != null) setState(() => _mode = value);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const RadioListTile<String>(
+                  value: 'Local',
+                  title: Text('Local'),
+                ),
+                const RadioListTile<String>(
+                  value: 'Remote',
+                  title: Text('Remote'),
+                ),
               if (_mode == 'Remote') ...[
                 TextField(controller: _host, decoration: const InputDecoration(labelText: 'Server host')),
                 TextField(controller: _port, decoration: const InputDecoration(labelText: 'Port')),
@@ -735,7 +737,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
           const Text('Proxy mode', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _proxyMode,
+            initialValue: _proxyMode,
             decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
             items: const [
               DropdownMenuItem(value: 'Disabled', child: Text('Disabled — direct connection')),
@@ -749,7 +751,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             const Text('Manual proxy', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _proxyProtocol,
+              initialValue: _proxyProtocol,
               decoration: const InputDecoration(labelText: 'Protocol', border: OutlineInputBorder()),
               items: const ['HTTP', 'HTTPS', 'SOCKS5']
                   .map((value) => DropdownMenuItem(value: value, child: Text(value)))
