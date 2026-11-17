@@ -4,10 +4,17 @@
 //! `vripper_string_free`. The API never returns borrowed Rust memory.
 
 use crate::api::parse_thread_response;
+use crate::coordinator::{CoordinatorConfig, DownloadCoordinator};
+use crate::queue::QueueMove;
 use crate::hosts::{resolve_host_html, HostId};
 use crate::scan_links;
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+use tokio::runtime::{Builder, Runtime};
+use tokio::sync::{Mutex as AsyncMutex, broadcast};
 
 const ENGINE_VERSION: &str = "0.1.0";
 const ABI_VERSION: u32 = 1;
@@ -179,6 +186,291 @@ pub unsafe extern "C" fn vripper_resolve_host_html_json(
     match result {
         Ok(value) => into_c_string(value),
         Err(_) => into_c_string(json_error("native engine panicked")),
+    }
+}
+
+
+static NEXT_COORDINATOR_ID: AtomicU64 = AtomicU64::new(1);
+static COORDINATORS: OnceLock<Mutex<std::collections::HashMap<u64, Arc<DownloadCoordinator>>>> = OnceLock::new();
+static COORDINATOR_EVENTS: OnceLock<Mutex<std::collections::HashMap<u64, Arc<AsyncMutex<broadcast::Receiver<crate::queue::QueueEvent>>>>>> = OnceLock::new();
+static FFI_RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+fn ffi_runtime() -> &'static Runtime {
+    FFI_RUNTIME.get_or_init(|| {
+        Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .expect("failed to initialize VRipper native runtime")
+    })
+}
+
+fn coordinators() -> &'static Mutex<std::collections::HashMap<u64, Arc<DownloadCoordinator>>> {
+    COORDINATORS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+fn coordinator_events() -> &'static Mutex<std::collections::HashMap<u64, Arc<AsyncMutex<broadcast::Receiver<crate::queue::QueueEvent>>>>> {
+    COORDINATOR_EVENTS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+fn coordinator_for(handle: u64) -> Result<Arc<DownloadCoordinator>, String> {
+    coordinators()
+        .lock()
+        .map_err(|_| "coordinator registry lock poisoned".to_owned())?
+        .get(&handle)
+        .cloned()
+        .ok_or_else(|| format!("unknown coordinator handle: {handle}"))
+}
+
+/// Create a local/remote download coordinator from JSON configuration.
+///
+/// Secrets in the input are used only to initialize in-memory clients/session
+/// cookies. The coordinator deliberately does not retain the config or passwords.
+///
+/// # Safety
+/// config_json must point to a valid NUL-terminated UTF-8 JSON string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_create_json(
+    config_json: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let config_json = match read_utf8(config_json, "config_json") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let config: CoordinatorConfig = match serde_json::from_str(&config_json) {
+            Ok(value) => value,
+            Err(error) => return json_error(&format!("invalid coordinator configuration: {error}")),
+        };
+        let coordinator = match ffi_runtime().block_on(DownloadCoordinator::new(config)) {
+            Ok(value) => Arc::new(value),
+            Err(error) => return json_error(&error.to_string()),
+        };
+        let handle = NEXT_COORDINATOR_ID.fetch_add(1, Ordering::Relaxed);
+        let receiver = coordinator.subscribe();
+        if let Ok(mut registry) = coordinators().lock() {
+            registry.insert(handle, coordinator);
+        } else {
+            return json_error("coordinator registry lock poisoned");
+        }
+        if let Ok(mut registry) = coordinator_events().lock() {
+            registry.insert(handle, Arc::new(AsyncMutex::new(receiver)));
+        } else {
+            return json_error("coordinator event registry lock poisoned");
+        }
+        serde_json::json!({ "handle": handle }).to_string()
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+/// Scan links, perform site lookups and enqueue extracted images.
+///
+/// # Safety
+/// input and configured_bases_json must be valid NUL-terminated UTF-8 strings.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_scan_and_queue_json(
+    handle: u64,
+    input: *const c_char,
+    configured_bases_json: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let input = match read_utf8(input, "input") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let bases_pointer = match read_utf8(configured_bases_json, "configured_bases_json") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let bases: Vec<String> = match serde_json::from_str(&bases_pointer) {
+            Ok(value) => value,
+            Err(error) => return json_error(&format!("invalid configured base list: {error}")),
+        };
+        let summary = ffi_runtime().block_on(coordinator.scan_and_queue(&input, &bases));
+        serde_json::to_string(&summary)
+            .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}")))
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+/// Return the current queue snapshot as JSON.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_snapshot_json(handle: u64) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match ffi_runtime().block_on(coordinator.snapshot()) {
+            Ok(snapshot) => serde_json::to_string(&snapshot)
+                .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}"))),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_stop_json(
+    handle: u64,
+    job_id: u64,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match ffi_runtime().block_on(coordinator.stop(job_id)) {
+            Ok(stopped) => serde_json::json!({ "stopped": stopped }).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_stop_all_json(handle: u64) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match ffi_runtime().block_on(coordinator.stop_all()) {
+            Ok(()) => serde_json::json!({ "ok": true }).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_move_json(
+    handle: u64,
+    job_id: u64,
+    movement: *const c_char,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let movement = match read_utf8(movement, "movement") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        let movement = match movement.as_str() {
+            "top" => QueueMove::Top,
+            "up" => QueueMove::Up,
+            "down" => QueueMove::Down,
+            "bottom" => QueueMove::Bottom,
+            _ => return json_error("movement must be top, up, down or bottom"),
+        };
+        match ffi_runtime().block_on(coordinator.move_job(job_id, movement)) {
+            Ok(moved) => serde_json::json!({ "moved": moved }).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_clear_finished_json(handle: u64) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match ffi_runtime().block_on(coordinator.clear_finished()) {
+            Ok(()) => serde_json::json!({ "ok": true }).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+/// Poll one queue event. Returns {"timeout":true} if no event arrives in time.
+///
+/// # Safety
+/// No pointers are accepted by this function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_poll_event_json(
+    handle: u64,
+    timeout_ms: u64,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let receiver = match coordinator_events().lock() {
+            Ok(registry) => registry.get(&handle).cloned(),
+            Err(_) => return json_error("coordinator event registry lock poisoned"),
+        };
+        let Some(receiver) = receiver else {
+            return json_error(&format!("unknown coordinator handle: {handle}"));
+        };
+        let event = ffi_runtime().block_on(async {
+            let mut receiver = receiver.lock().await;
+            tokio::time::timeout(Duration::from_millis(timeout_ms.min(30_000)), receiver.recv()).await
+        });
+        match event {
+            Ok(Ok(event)) => serde_json::to_string(&event)
+                .unwrap_or_else(|error| json_error(&format!("serialization failed: {error}"))),
+            Ok(Err(broadcast::error::RecvError::Lagged(skipped))) => {
+                serde_json::json!({ "error": "event receiver lagged", "skipped": skipped }).to_string()
+            }
+            Ok(Err(broadcast::error::RecvError::Closed)) => json_error("event stream closed"),
+            Err(_) => serde_json::json!({ "timeout": true }).to_string(),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_coordinator_destroy_json(handle: u64) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = coordinators()
+            .lock()
+            .ok()
+            .and_then(|mut registry| registry.remove(&handle));
+        if let Ok(mut registry) = coordinator_events().lock() {
+            registry.remove(&handle);
+        }
+        let Some(coordinator) = coordinator else {
+            return json_error(&format!("unknown coordinator handle: {handle}"));
+        };
+        match ffi_runtime().block_on(coordinator.shutdown()) {
+            Ok(()) => serde_json::json!({ "ok": true }).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
     }
 }
 
