@@ -48,16 +48,19 @@ jobs:
   android-arm64:
     name: Android ARM64 smoke build
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-      - uses: android-actions/setup-android@v3
       - name: Install Android NDK
         run: |
-          sdkmanager "ndk;27.0.12077973"
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --install "ndk;27.0.12077973"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> "$GITHUB_ENV"
       - name: Configure Rust Android target
         uses: dtolnay/rust-toolchain@stable
