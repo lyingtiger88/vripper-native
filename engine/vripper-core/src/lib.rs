@@ -107,7 +107,7 @@ pub fn scan_links(input: &str, configured_bases: &[String]) -> ScanResult {
 /// Reference PathUtils sanitizer: replace dot, slash, backslash, pipe, colon,
 /// question mark, asterisk, quote, angle brackets and control characters with '_'.
 pub fn sanitize_reference_name(value: &str) -> String {
-    let invalid = Regex::new(r#"[.\\/|:?*"<>p{Cc}]"#).expect("static sanitizer regex");
+    let invalid = Regex::new(r#"[.\\/|:?*"<>\\p{Cc}]"#).expect("static sanitizer regex");
     invalid.replace_all(value, "_").into_owned()
 }
 
