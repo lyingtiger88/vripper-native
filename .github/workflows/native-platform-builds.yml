@@ -1,0 +1,80 @@
+name: Native platform builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - migration/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    name: Windows x86-64 smoke build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Windows runner
+        working-directory: apps/client
+        run: flutter create --platforms=windows --org com.vripper .
+      - name: Build native Rust engine
+        run: cargo build --release -p vripper-core --target x86_64-pc-windows-msvc
+      - name: Build Flutter desktop application
+        working-directory: apps/client
+        run: flutter build windows --release
+      - name: Bundle native engine beside executable
+        shell: pwsh
+        run: |
+          $release = "apps/client/build/windows/x64/runner/Release"
+          Copy-Item "target/x86_64-pc-windows-msvc/release/vripper_core.dll" "$release/vripper_core.dll"
+          Compress-Archive -Path "$release/*" -DestinationPath "vripper-native-windows-x64.zip" -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vripper-native-windows-x64
+          path: vripper-native-windows-x64.zip
+          if-no-files-found: error
+
+  android-arm64:
+    name: Android ARM64 smoke build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.0.12077973"
+      - name: Configure Rust Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Generate Android runner
+        working-directory: apps/client
+        run: flutter create --platforms=android --org com.vripper .
+      - name: Build native Rust engine for ARM64
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.0.12077973
+        run: cargo ndk -t arm64-v8a -o apps/client/android/app/src/main/jniLibs build --release -p vripper-core
+      - name: Build Android APK
+        working-directory: apps/client
+        run: flutter build apk --release --target-platform android-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vripper-native-android-arm64
+          path: apps/client/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
