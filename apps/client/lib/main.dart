@@ -1532,14 +1532,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
     setState(() => _databaseBusy = true);
     try {
       final support = await getApplicationSupportDirectory();
-      final directory = Directory('\${support.path}\${Platform.pathSeparator}database');
+      final directory = Directory('${support.path}${Platform.pathSeparator}database');
       await directory.create(recursive: true);
-      final destination = '\${directory.path}\${Platform.pathSeparator}vripper-imported-\${DateTime.now().millisecondsSinceEpoch}.db';
+      final destination = '${directory.path}${Platform.pathSeparator}vripper-imported-${DateTime.now().millisecondsSinceEpoch}.db';
       final report = await NativeEngine.instance.importLegacyDatabaseInBackground(source, destination);
       if (!mounted) return;
       setState(() => _activeDatabasePath = report['destination'] as String? ?? destination);
       _showDatabaseMessage(
-        'Import verified. \${report['imported']?['total_rows'] ?? 0} rows copied. '
+        'Import verified. ${report['imported']?['total_rows'] ?? 0} rows copied. '
         'The Java source file was preserved. Save settings to retain this database path.',
       );
     } catch (error) {
@@ -1591,12 +1591,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ),
         ),
         const SizedBox(height: 6),
-        Text('Integrity: \${_legacyDatabaseReport!['integrity_check'] ?? 'unknown'}'),
-        Text('Tables: \${(_legacyDatabaseReport!['tables'] as List? ?? const []).length}'),
-        Text('Total rows: \${_legacyDatabaseReport!['total_rows'] ?? 0}'),
-        Text('Liquibase history: \${_legacyDatabaseReport!['has_liquibase_history'] == true ? 'found' : 'not found'}'),
+        Text('Integrity: ${_legacyDatabaseReport!['integrity_check'] ?? 'unknown'}'),
+        Text('Tables: ${(_legacyDatabaseReport!['tables'] as List? ?? const []).length}'),
+        Text('Total rows: ${_legacyDatabaseReport!['total_rows'] ?? 0}'),
+        Text('Liquibase history: ${_legacyDatabaseReport!['has_liquibase_history'] == true ? 'found' : 'not found'}'),
         if ((_legacyDatabaseReport!['missing_required_tables'] as List? ?? const []).isNotEmpty)
-          Text('Missing: \${(_legacyDatabaseReport!['missing_required_tables'] as List).join(', ')}',
+          Text('Missing: ${(_legacyDatabaseReport!['missing_required_tables'] as List).join(', ')}',
               style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 10),
         FilledButton.icon(
