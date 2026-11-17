@@ -5,6 +5,8 @@
 //! Network access and live host resolution are deliberately not implemented until
 //! authorized fixtures and behavior tests are available.
 
+pub mod hosts;
+
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
