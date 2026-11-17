@@ -69,6 +69,8 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _posts = [];
   List<Map<String, dynamic>> _threads = [];
   String? _databasePath;
+  String? _nativeCatalogPath;
+  Future<void> _catalogWrites = Future.value();
   final Set<String> _selectedPostKeys = <String>{};
   Map<String, dynamic> _networkSettings = {
     'mode': 'disabled', 'manual_proxy': null, 'bypass_hosts': <String>[],
@@ -112,6 +114,18 @@ class _HomePageState extends State<HomePage> {
         final decoded = jsonDecode(savedThreads);
         if (decoded is List) _threads = decoded.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
       }
+      final support = await getApplicationSupportDirectory();
+      await support.create(recursive: true);
+      _nativeCatalogPath = '${support.path}${Platform.pathSeparator}native-catalog.db';
+      final saved = await NativeEngine.instance.nativeCatalogInBackground(_nativeCatalogPath!);
+      final catalog = saved['catalog'];
+      if (catalog is Map) {
+        _posts = (catalog['posts'] as List).cast<Map<String, dynamic>>();
+        _threads = (catalog['threads'] as List).cast<Map<String, dynamic>>();
+      } else {
+        await _persistPostData();
+      }
+      if (mounted) setState(() {});
       final proxyUser = await _secureStorage.read(key: 'vripper.proxy.username');
       final proxyPassword = await _secureStorage.read(key: 'vripper.proxy.password');
       if (proxyUser != null && proxyPassword != null) {
@@ -345,9 +359,19 @@ class _HomePageState extends State<HomePage> {
       post['thread_id'].toString() + ':' + post['post_id'].toString();
 
   Future<void> _persistPostData() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString('vripper.posts', jsonEncode(_posts));
-    await preferences.setString('vripper.threads', jsonEncode(_threads));
+    final path = _nativeCatalogPath;
+    if (path == null) throw StateError('SQLite catalog is not initialized');
+    final data = <String, dynamic>{
+      'posts': jsonDecode(jsonEncode(_posts)),
+      'threads': jsonDecode(jsonEncode(_threads)),
+    };
+    final write = _catalogWrites.then((_) async {
+      await NativeEngine.instance.nativeCatalogInBackground(path, data);
+    });
+    _catalogWrites = write.then<void>((_) {}, onError: (Object error, StackTrace stack) {
+      if (mounted) _showMessage('SQLite catalog write failed: $error');
+    });
+    await write;
   }
 
   void _togglePostSelection(String key, bool selected) {
