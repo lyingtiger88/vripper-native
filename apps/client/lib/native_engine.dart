@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
@@ -15,6 +16,18 @@ typedef _ParseDart = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
 typedef _ResolveNative = Pointer<Int8> Function(Uint8, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, Uint8);
 typedef _ResolveDart = Pointer<Int8> Function(int, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, Pointer<Int8>, int);
 typedef _FreeNative = Void Function(Pointer<Int8>);
+typedef _CoordinatorCreateNative = Pointer<Int8> Function(Pointer<Int8>);
+typedef _CoordinatorCreateDart = Pointer<Int8> Function(Pointer<Int8>);
+typedef _ScanQueueNative = Pointer<Int8> Function(Uint64, Pointer<Int8>, Pointer<Int8>);
+typedef _ScanQueueDart = Pointer<Int8> Function(int, Pointer<Int8>, Pointer<Int8>);
+typedef _HandleNative = Pointer<Int8> Function(Uint64);
+typedef _HandleDart = Pointer<Int8> Function(int);
+typedef _StopNative = Pointer<Int8> Function(Uint64, Uint64);
+typedef _StopDart = Pointer<Int8> Function(int, int);
+typedef _MoveNative = Pointer<Int8> Function(Uint64, Uint64, Pointer<Int8>);
+typedef _MoveDart = Pointer<Int8> Function(int, int, Pointer<Int8>);
+typedef _PollNative = Pointer<Int8> Function(Uint64, Uint64);
+typedef _PollDart = Pointer<Int8> Function(int, int);
 typedef _FreeDart = void Function(Pointer<Int8>);
 
 class NativeEngine {
@@ -29,6 +42,15 @@ class NativeEngine {
   _ParseDart? _parseThread;
   _ResolveDart? _resolveHost;
   _FreeDart? _freeString;
+  _CoordinatorCreateDart? _createCoordinator;
+  _ScanQueueDart? _scanAndQueue;
+  _HandleDart? _snapshot;
+  _StopDart? _stop;
+  _HandleDart? _stopAll;
+  _MoveDart? _move;
+  _HandleDart? _clearFinished;
+  _PollDart? _pollEvent;
+  _HandleDart? _destroyCoordinator;
   String? loadError;
 
   bool get isLoaded => _library != null;
@@ -44,6 +66,15 @@ class NativeEngine {
       _parseThread = library.lookupFunction<_ParseNative, _ParseDart>('vripper_parse_thread_response_json');
       _resolveHost = library.lookupFunction<_ResolveNative, _ResolveDart>('vripper_resolve_host_html_json');
       _freeString = library.lookupFunction<_FreeNative, _FreeDart>('vripper_string_free');
+      _createCoordinator = library.lookupFunction<_CoordinatorCreateNative, _CoordinatorCreateDart>('vripper_coordinator_create_json');
+      _scanAndQueue = library.lookupFunction<_ScanQueueNative, _ScanQueueDart>('vripper_coordinator_scan_and_queue_json');
+      _snapshot = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_snapshot_json');
+      _stop = library.lookupFunction<_StopNative, _StopDart>('vripper_coordinator_stop_json');
+      _stopAll = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_stop_all_json');
+      _move = library.lookupFunction<_MoveNative, _MoveDart>('vripper_coordinator_move_json');
+      _clearFinished = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_clear_finished_json');
+      _pollEvent = library.lookupFunction<_PollNative, _PollDart>('vripper_coordinator_poll_event_json');
+      _destroyCoordinator = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_destroy_json');
       if (_abiVersion!() != 1) throw StateError('Unsupported native engine ABI version');
     } catch (error) {
       _library = null;
