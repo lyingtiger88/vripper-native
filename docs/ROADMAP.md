@@ -49,6 +49,8 @@
 - Reproduce desktop shell, tabs, toolbar, status and error regions.
 - Reproduce Posts, Threads, Tasks and Logs views.
 - Reproduce dialogs, settings, filters, tables, grids, context actions and keyboard behavior.
+- Add a distinct Settings → Network section with Disabled/System/Manual proxy modes, HTTP/HTTPS/SOCKS5, authentication, bypass list and connection test; preserve the existing Connection section.
+- Route all application HTTP traffic through the selected proxy and store secrets only in platform secure storage (see docs/NETWORK_SETTINGS.md).
 - Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap, cache and geometry persistence.
 - Adapt only layout constraints required by mobile screens; do not remove workflows or change semantics.
 **Exit:** screen-by-screen and interaction-by-interaction comparison accepted.
@@ -93,6 +95,7 @@
 | Rust engine | Not started |
 | Flutter UI | Not started |
 | CI and packaging | Target matrix defined |
+| Network/proxy settings | Specified; implementation pending |
 
 ## Architecture decisions
 - ADR-0001: Rust engine + Flutter UI.
