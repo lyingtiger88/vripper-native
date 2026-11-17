@@ -46,6 +46,11 @@ char *vripper_coordinator_clear_finished_json(uint64_t handle);
 char *vripper_coordinator_poll_event_json(uint64_t handle, uint64_t timeout_ms);
 char *vripper_coordinator_destroy_json(uint64_t handle);
 
+/* Legacy database inspection, snapshot import and read-only catalog. */
+char *vripper_database_inspect_json(const char *path);
+char *vripper_database_import_json(const char *source, const char *destination);
+char *vripper_database_catalog_json(const char *path);
+
 /* Release any non-NULL string returned by this library exactly once. */
 void vripper_string_free(char *value);
 
