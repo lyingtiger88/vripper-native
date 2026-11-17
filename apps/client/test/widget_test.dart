@@ -29,6 +29,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Viper account'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
+
+    await tester.tap(find.text('Database').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Legacy Java database'), findsOneWidget);
+    expect(find.text('Choose Java database'), findsOneWidget);
   });
 
   testWidgets('Posts list displays extracted records and supports selection/removal', (tester) async {
