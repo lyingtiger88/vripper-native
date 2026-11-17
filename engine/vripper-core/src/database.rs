@@ -395,6 +395,51 @@ mod tests {
     use super::*;
 
 
+
+    #[test]
+    fn legacy_image_rows_map_to_native_jobs_without_changing_files_or_starting_downloads() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("legacy-images.db");
+        let output = temp.path().join("existing-downloads");
+        fs::create_dir_all(output.join("post-folder")).unwrap();
+        fs::write(output.join("post-folder").join("already.jpg"), b"keep-me").unwrap();
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(&format!(
+            "CREATE TABLE POST (ID INTEGER PRIMARY KEY, POST_ID INTEGER, OUTPUT_PATH TEXT, FOLDER_NAME TEXT, RANK INTEGER);
+             CREATE TABLE IMAGE (ID INTEGER PRIMARY KEY, POST_ID_REF INTEGER, HOST INTEGER, URL TEXT, THUMB_URL TEXT, \"INDEX\" INTEGER, STATUS TEXT, FILENAME TEXT, DOWNLOADED INTEGER, SIZE INTEGER);
+             INSERT INTO POST VALUES (7,700,'{}','post-folder',0);
+             INSERT INTO IMAGE VALUES
+               (11,7,1,'https://dpic.me/a.jpg','https://dpic.me/t.jpg',0,'FINISHED','already.jpg',4,4),
+               (12,7,1,'https://dpic.me/b.jpg','https://dpic.me/t2.jpg',1,'DOWNLOADING','',2,10),
+               (13,7,1,'https://dpic.me/c.jpg','https://dpic.me/t3.jpg',2,'PENDING','',0,0);",
+            output.to_string_lossy().replace('\'', "''")
+        )).unwrap();
+        drop(db);
+
+        let entries = read_legacy_queue(&path).unwrap();
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].image_id, 11);
+        assert_eq!(entries[0].status, crate::queue::QueueStatus::Finished);
+        assert_eq!(entries[0].destination_path.as_deref(), Some(output.join("post-folder").join("already.jpg").to_str().unwrap()));
+        assert_eq!(entries[1].status, crate::queue::QueueStatus::Stopped);
+        assert_eq!(entries[1].bytes_written, 2);
+        assert_eq!(entries[2].status, crate::queue::QueueStatus::Stopped);
+        assert_eq!(fs::read(output.join("post-folder").join("already.jpg")).unwrap(), b"keep-me");
+    }
+
+    #[test]
+    fn legacy_queue_rejects_path_traversal_in_folder_names() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("unsafe.db");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch("CREATE TABLE POST (ID INTEGER, POST_ID INTEGER, OUTPUT_PATH TEXT, FOLDER_NAME TEXT, RANK INTEGER);
+            CREATE TABLE IMAGE (ID INTEGER, POST_ID_REF INTEGER, HOST INTEGER, URL TEXT, THUMB_URL TEXT, \"INDEX\" INTEGER, STATUS TEXT, FILENAME TEXT, DOWNLOADED INTEGER, SIZE INTEGER);
+            INSERT INTO POST VALUES (1,1,'/tmp','../escape',0);
+            INSERT INTO IMAGE VALUES (1,1,1,'https://dpic.me/a.jpg','',0,'PENDING','',0,0);").unwrap();
+        drop(db);
+        assert!(read_legacy_queue(&path).is_err());
+    }
+
     #[test]
     fn catalog_projects_reference_columns_without_secrets() {
         let temp = tempfile::tempdir().unwrap();
