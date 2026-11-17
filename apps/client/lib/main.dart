@@ -68,6 +68,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _queueSnapshot = const {};
   List<Map<String, dynamic>> _posts = [];
   List<Map<String, dynamic>> _threads = [];
+  Map<String, dynamic> _legacyCatalogExtras = {};
   String? _databasePath;
   String? _nativeCatalogPath;
   Future<void> _catalogWrites = Future.value();
@@ -122,6 +123,7 @@ class _HomePageState extends State<HomePage> {
       if (catalog is Map) {
         _posts = (catalog['posts'] as List).cast<Map<String, dynamic>>();
         _threads = (catalog['threads'] as List).cast<Map<String, dynamic>>();
+        _legacyCatalogExtras = Map<String, dynamic>.from(catalog)..remove('posts')..remove('threads')..remove('catalog');
       } else {
         await _persistPostData();
       }
@@ -487,6 +489,7 @@ class _HomePageState extends State<HomePage> {
         if (!mounted) return;
         final posts = (catalog['posts'] as List).cast<Map<String, dynamic>>();
         final threads = (catalog['threads'] as List).cast<Map<String, dynamic>>();
+        _legacyCatalogExtras = Map<String, dynamic>.from(catalog)..remove('posts')..remove('threads')..remove('catalog');
         final postMap = {for (final post in posts) _postKey(post): post};
         for (final post in _posts) {
           postMap.putIfAbsent(_postKey(post), () => post);
