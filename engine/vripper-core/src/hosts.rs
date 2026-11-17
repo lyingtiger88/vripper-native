@@ -177,13 +177,13 @@ pub fn resolve_host_html(
             } else {
                 document
             };
-            let image_url = required(first_attr(&page, "img[class='centred']", "src"), "centred image src")?;
-            let name = first_attr(&page, "img[class='centred']", "alt")
-                .unwrap_or_else(|| default_name(&image_url));
+            let image_url = required(first_attr_including_empty(&page, "img[class='centred']", "src"), "centred image src")?;
+            let title = required(first_attr_including_empty(&page, "img[class='centred']", "alt"), "centred image alt")?;
+            let name = if title.is_empty() { default_name(&image_url) } else { title };
             Ok(resolved(name, image_url))
         }
         HostId::DPicMe => {
-            let image_url = required(first_attr(&document, "img#pic", "src"), "pic image src")?;
+            let image_url = required(first_attr_including_empty(&document, "img#pic", "src"), "pic image src")?;
             let name = first_attr(&document, "img#pic", "alt")
                 .unwrap_or_else(|| image_url.rsplit('/').next().unwrap_or(&image_url).to_owned());
             Ok(resolved(name, image_url))
@@ -237,8 +237,7 @@ pub fn resolve_host_html(
             } else {
                 (document, Vec::new())
             };
-            let image_url = required(
-                first_attr(&page, "img.main-image", "src"),
+            let image_url = required(first_attr_including_empty(&page, "img.main-image", "src"),
                 "main-image src",
             )?;
             let name = first_attr(&page, "img.main-image", "alt")
@@ -251,8 +250,8 @@ pub fn resolve_host_html(
             }))
         }
         HostId::ImageTwist => {
-            let image_url = required(first_attr(&document, "img[class*='img']", "src"), "image src")?;
-            let name = required(first_attr(&document, "img[class*='img']", "alt"), "image alt")?;
+            let image_url = required(first_attr_including_empty(&document, "img[class*='img']", "src"), "image src")?;
+            let name = required(first_attr_including_empty(&document, "img[class*='img']", "alt"), "image alt")?;
             Ok(HostResolution::Resolved(ResolvedImage {
                 name,
                 image_url,
@@ -276,8 +275,7 @@ pub fn resolve_host_html(
             } else {
                 document
             };
-            let image_url = required(
-                first_attr(&page, "a[data-toggle='full'] > img#main-image", "src"),
+            let image_url = required(first_attr_including_empty(&page, "a[data-toggle='full'] > img#main-image", "src"),
                 "main-image src",
             )?;
             let name = first_attr(&page, "a[data-toggle='full'] > img#main-image", "alt")
@@ -292,13 +290,13 @@ pub fn resolve_host_html(
             Ok(resolved(name, source_url.replace("show", "images")))
         }
         HostId::Imgbox => {
-            let name = required(first_attr(&document, "img#img", "title"), "img title")?;
-            let image_url = required(first_attr(&document, "img#img", "src"), "img src")?;
+            let name = required(first_attr_including_empty(&document, "img#img", "title"), "img title")?;
+            let image_url = required(first_attr_including_empty(&document, "img#img", "src"), "img src")?;
             Ok(resolved(name, image_url))
         }
         HostId::ImgSpice => {
-            let image_url = required(first_attr(&document, "img#imgpreview", "src"), "imgpreview src")?;
-            let name = required(first_attr(&document, "img#imgpreview", "alt"), "imgpreview alt")?;
+            let image_url = required(first_attr_including_empty(&document, "img#imgpreview", "src"), "imgpreview src")?;
+            let name = required(first_attr_including_empty(&document, "img#imgpreview", "alt"), "imgpreview alt")?;
             Ok(resolved(name, image_url))
         }
         HostId::Imx => {
@@ -337,27 +335,30 @@ pub fn resolve_host_html(
                 }));
             };
             let page = Html::parse_document(after);
-            let image_url = required(
-                first_attr(&page, "img[class*='original']", "src"),
+            let image_url = required(first_attr_including_empty(&page, "img[class*='original']", "src"),
                 "original image src",
             )?;
             let image_url = format!("https:{image_url}");
-            let name = first_attr(&page, "img[class*='original']", "alt")
-                .unwrap_or_else(|| image_url.rsplit('/').next().unwrap_or(&image_url).to_owned());
+            let title = required(first_attr_including_empty(&page, "img[class*='original']", "alt"), "original image alt")?;
+            let name = if title.is_empty() {
+                image_url.rsplit('/').next().unwrap_or(&image_url).to_owned()
+            } else {
+                title
+            };
             Ok(resolved(name, image_url))
         }
         HostId::Pixhost => {
-            let image_url = required(first_attr(&document, "img#image", "src"), "image src")?;
-            let name = required(first_attr(&document, "img#image", "alt"), "image alt")?;
+            let image_url = required(first_attr_including_empty(&document, "img#image", "src"), "image src")?;
+            let name = required(first_attr_including_empty(&document, "img#image", "alt"), "image alt")?;
             Ok(resolved(name, image_url))
         }
         HostId::PixRoute => {
-            let image_url = required(first_attr(&document, "img#imgpreview", "src"), "imgpreview src")?;
-            let name = required(first_attr(&document, "img#imgpreview", "alt"), "imgpreview alt")?;
+            let image_url = required(first_attr_including_empty(&document, "img#imgpreview", "src"), "imgpreview src")?;
+            let name = required(first_attr_including_empty(&document, "img#imgpreview", "alt"), "imgpreview alt")?;
             Ok(resolved(name, image_url))
         }
         HostId::Pixxxels => {
-            let image_url = required(first_attr(&document, "a#download", "href"), "download href")?;
+            let image_url = required(first_attr_including_empty(&document, "a#download", "href"), "download href")?;
             let name = first_text(
                 &document,
                 "main > div > div:nth-of-type(3) > div:nth-of-type(1) > h6",
@@ -366,20 +367,20 @@ pub fn resolve_host_html(
             Ok(resolved(name, image_url))
         }
         HostId::PostImg => {
-            let image_url = required(first_attr(&document, "img.img-fluid", "src"), "img-fluid src")?;
-            let name = required(first_attr(&document, "img.img-fluid", "alt"), "img-fluid alt")?;
+            let image_url = required(first_attr_including_empty(&document, "img.img-fluid", "src"), "img-fluid src")?;
+            let name = required(first_attr_including_empty(&document, "img.img-fluid", "alt"), "img-fluid alt")?;
             Ok(resolved(name, image_url))
         }
         HostId::TurboImageHost => {
             let name = first_text(&document, "div.titleFullS > h1")
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(|| default_name(source_url));
-            let image_url = required(first_attr(&document, "img#imageid", "src"), "imageid src")?;
+            let image_url = required(first_attr_including_empty(&document, "img#imageid", "src"), "imageid src")?;
             Ok(resolved(name, image_url))
         }
         HostId::ViprIm => {
-            let image_url = required(first_attr(&document, "img[class*='img']", "src"), "image src")?;
-            let name = required(first_attr(&document, "img[class*='img']", "alt"), "image alt")?;
+            let image_url = required(first_attr_including_empty(&document, "img[class*='img']", "src"), "image src")?;
+            let name = required(first_attr_including_empty(&document, "img[class*='img']", "alt"), "image alt")?;
             Ok(HostResolution::Resolved(ResolvedImage {
                 name,
                 image_url,
