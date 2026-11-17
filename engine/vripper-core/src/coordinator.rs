@@ -230,7 +230,7 @@ impl DownloadCoordinator {
                     title: thread.title.clone(),
                     forum: thread.forum.clone(),
                     url: thread_url,
-                    post_count: thread.posts.len(),
+                    post_count: 0,
                 });
             }
             for post in thread.posts {
@@ -251,6 +251,9 @@ impl DownloadCoordinator {
                     images: post.images.clone(),
                 };
                 summary.posts.push(record);
+                if let Some(thread_record) = summary.threads.iter_mut().find(|item| item.thread_id == post.thread_id) {
+                    thread_record.post_count += 1;
+                }
 
                 let base_directory = calculate_download_directory(
                     &self.options.download_path,
