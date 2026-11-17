@@ -65,14 +65,7 @@ impl ViperAuthService {
             return Err(ViperAuthError::EmptyCredentials);
         }
 
-        let mut base = Url::parse(host.trim_end_matches('/'))
-            .map_err(|error| ViperAuthError::InvalidHost(error.to_string()))?;
-        if !matches!(base.scheme(), "http" | "https") || base.host_str().is_none() {
-            return Err(ViperAuthError::InvalidHost("expected an HTTP(S) origin".into()));
-        }
-        base.set_path("/login.php");
-        base.set_query(Some("do=login"));
-        base.set_fragment(None);
+        let login_url = build_login_url(host)?;
 
         let password_digest = legacy_login_digest(&credentials.password);
         let fields = vec![
@@ -83,7 +76,7 @@ impl ViperAuthService {
         ];
         let response = self
             .transport
-            .post_form(base.as_str(), &fields, &RequestContext::default())
+            .post_form(login_url.as_str(), &fields, &RequestContext::default())
             .await?;
 
         let user_id = response
@@ -120,6 +113,18 @@ impl ViperAuthService {
     }
 }
 
+fn build_login_url(host: &str) -> Result<Url, ViperAuthError> {
+    let mut base = Url::parse(host.trim_end_matches('/'))
+        .map_err(|error| ViperAuthError::InvalidHost(error.to_string()))?;
+    if !matches!(base.scheme(), "http" | "https") || base.host_str().is_none() {
+        return Err(ViperAuthError::InvalidHost("expected an HTTP(S) origin".into()));
+    }
+    base.set_path("/login.php");
+    base.set_query(Some("do=login"));
+    base.set_fragment(None);
+    Ok(base)
+}
+
 pub fn legacy_login_digest(password: &str) -> String {
     format!("{:x}", Md5::digest(password.as_bytes()))
 }
@@ -149,10 +154,13 @@ mod tests {
 
     #[test]
     fn rejects_non_http_viper_origins() {
-        let parsed = Url::parse("file:///tmp").unwrap();
         assert!(matches!(
-            parsed.scheme(),
-            "file"
+            build_login_url("file:///tmp"),
+            Err(ViperAuthError::InvalidHost(_))
         ));
+        assert_eq!(
+            build_login_url("https://vipergirls.to/").unwrap().as_str(),
+            "https://vipergirls.to/login.php?do=login"
+        );
     }
 }
