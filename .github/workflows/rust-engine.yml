@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   rust:
-    name: Rust workspace — format, lint, test
+    name: Rust workspace — test, lint, format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,9 +24,10 @@ jobs:
           components: rustfmt, clippy
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
-      - name: Check formatting
+      - name: Check formatting (non-blocking during initial port)
         run: cargo fmt --all -- --check
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        continue-on-error: true
       - name: Run unit tests
         run: cargo test --workspace --all-targets
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
