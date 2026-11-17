@@ -7,6 +7,7 @@
 
 pub mod api;
 pub mod hosts;
+pub mod network;
 pub mod ffi;
 
 use regex::Regex;
