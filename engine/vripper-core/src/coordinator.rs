@@ -32,6 +32,8 @@ pub struct CoordinatorConfig {
     pub temp_path: PathBuf,
     #[serde(default)]
     pub queue_database_path: Option<PathBuf>,
+    #[serde(default)]
+    pub legacy_database_path: Option<PathBuf>,
     pub forum_subdirectory: bool,
     pub thread_sublocation: bool,
     pub append_post_id: bool,
@@ -86,6 +88,8 @@ pub enum CoordinatorError {
     Lookup(#[from] ViperApiError),
     #[error(transparent)]
     Queue(#[from] QueueError),
+    #[error(transparent)]
+    Database(#[from] crate::database::DatabaseError),
 }
 
 struct DownloadOptions {
@@ -151,6 +155,17 @@ impl DownloadCoordinator {
             None => QueueManager::new(pipeline, config.queue_settings),
         };
 
+        if let Some(path) = config.legacy_database_path {
+            let result = async {
+                let entries = crate::database::read_legacy_queue(&path)?;
+                queue.import_legacy(entries).await?;
+                Ok::<(), CoordinatorError>(())
+            }.await;
+            if let Err(error) = result {
+                let _ = queue.shutdown().await;
+                return Err(error);
+            }
+        }
         Ok(Self { api, queue, options })
     }
 
