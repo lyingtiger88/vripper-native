@@ -64,6 +64,9 @@ class _HomePageState extends State<HomePage> {
   int? _coordinatorHandle;
   String? _coordinatorError;
   Map<String, dynamic> _queueSnapshot = const {};
+  List<Map<String, dynamic>> _posts = [];
+  List<Map<String, dynamic>> _threads = [];
+  final Set<String> _selectedPostKeys = <String>{};
   Map<String, dynamic> _networkSettings = {
     'mode': 'disabled', 'manual_proxy': null, 'bypass_hosts': <String>[],
   };
@@ -94,6 +97,16 @@ class _HomePageState extends State<HomePage> {
       if (encoded != null) {
         final decoded = jsonDecode(encoded);
         if (decoded is Map) _networkSettings = Map<String, dynamic>.from(decoded);
+      }
+      final savedPosts = preferences.getString('vripper.posts');
+      final savedThreads = preferences.getString('vripper.threads');
+      if (savedPosts != null) {
+        final decoded = jsonDecode(savedPosts);
+        if (decoded is List) _posts = decoded.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+      }
+      if (savedThreads != null) {
+        final decoded = jsonDecode(savedThreads);
+        if (decoded is List) _threads = decoded.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
       }
       final proxyUser = await _secureStorage.read(key: 'vripper.proxy.username');
       final proxyPassword = await _secureStorage.read(key: 'vripper.proxy.password');
@@ -288,14 +301,94 @@ class _HomePageState extends State<HomePage> {
       final images = result['images_queued'] ?? 0;
       final invalid = (result['invalid_links'] as List? ?? []).length;
       final errors = (result['errors'] as List? ?? []).length;
+      final discoveredPosts = (result['posts'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final discoveredThreads = (result['threads'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final postMap = <String, Map<String, dynamic>>{
+        for (final item in _posts) _postKey(item): item,
+      };
+      for (final item in discoveredPosts) {
+        postMap[_postKey(item)] = item;
+      }
+      final threadMap = <String, Map<String, dynamic>>{
+        for (final item in _threads) item['thread_id'].toString(): item,
+      };
+      for (final item in discoveredThreads) {
+        threadMap[item['thread_id'].toString()] = item;
+      }
       setState(() {
+        _posts = postMap.values.toList()
+          ..sort((a, b) => (b['post_id'] as int? ?? 0).compareTo(a['post_id'] as int? ?? 0));
+        _threads = threadMap.values.toList()
+          ..sort((a, b) => (b['thread_id'] as int? ?? 0).compareTo(a['thread_id'] as int? ?? 0));
         _scanSummary = 'Lookups: $threads thread(s); $posts post(s); $images image(s) queued; '
             '$invalid invalid link(s); $errors error(s).';
         _queueSnapshot = NativeEngine.instance.queueSnapshot(handle);
       });
+      await _persistPostData();
     } catch (error) {
       _showMessage('Link scan or extraction failed: $error');
     }
+  }
+
+
+  String _postKey(Map<String, dynamic> post) =>
+      post['thread_id'].toString() + ':' + post['post_id'].toString();
+
+  Future<void> _persistPostData() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('vripper.posts', jsonEncode(_posts));
+    await preferences.setString('vripper.threads', jsonEncode(_threads));
+  }
+
+  void _togglePostSelection(String key, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedPostKeys.add(key);
+      } else {
+        _selectedPostKeys.remove(key);
+      }
+    });
+  }
+
+  Future<void> _removeSelectedPosts() async {
+    if (_selectedPostKeys.isEmpty) return;
+    setState(() {
+      _posts.removeWhere((post) => _selectedPostKeys.contains(_postKey(post)));
+      _selectedPostKeys.clear();
+    });
+    await _persistPostData();
+  }
+
+  Future<void> _clearPosts() async {
+    if (_posts.isEmpty) return;
+    setState(() {
+      _posts.clear();
+      _selectedPostKeys.clear();
+    });
+    await _persistPostData();
+  }
+
+  Future<void> _removeThread(int threadId) async {
+    setState(() {
+      _threads.removeWhere((thread) => thread['thread_id'] == threadId);
+    });
+    await _persistPostData();
+  }
+
+  Future<void> _clearThreads() async {
+    setState(() => _threads.clear());
+    await _persistPostData();
+  }
+
+  Future<void> _copyPostUrl(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    if (mounted) _showMessage('Post URL copied.');
   }
 
   Future<void> _storeCredentialPair(
@@ -406,8 +499,18 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: TabBarView(
                 children: [
-                  PostsTab(search: _search, summary: _scanSummary, onAddLinks: _addLinks),
-                  const ThreadsTab(),
+                  PostsTab(
+                    search: _search,
+                    summary: _scanSummary,
+                    posts: _posts,
+                    selectedKeys: _selectedPostKeys,
+                    onAddLinks: _addLinks,
+                    onToggleSelection: _togglePostSelection,
+                    onRemoveSelected: _removeSelectedPosts,
+                    onClear: _clearPosts,
+                    onCopyUrl: _copyPostUrl,
+                  ),
+                  ThreadsTab(threads: _threads, onRemove: _removeThread, onClear: _clearThreads),
                   TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished, onStop: _stopJob, onMove: _moveJob),
                   const LogsTab(),
                 ],
@@ -585,43 +688,66 @@ class _ToolbarButton extends StatelessWidget {
 }
 
 class PostsTab extends StatelessWidget {
-  const PostsTab({required this.search, required this.summary, required this.onAddLinks});
+  const PostsTab({
+    required this.search, required this.summary, required this.posts,
+    required this.selectedKeys, required this.onAddLinks,
+    required this.onToggleSelection, required this.onRemoveSelected,
+    required this.onClear, required this.onCopyUrl,
+  });
   final TextEditingController search;
   final String summary;
+  final List<Map<String, dynamic>> posts;
+  final Set<String> selectedKeys;
   final VoidCallback onAddLinks;
+  final void Function(String, bool) onToggleSelection;
+  final VoidCallback onRemoveSelected;
+  final VoidCallback onClear;
+  final ValueChanged<String> onCopyUrl;
+
+  String _key(Map<String, dynamic> post) =>
+      post['thread_id'].toString() + ':' + post['post_id'].toString();
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _line))),
-            child: Row(
-              children: [
-                const Text('All', style: TextStyle(color: _accent, fontSize: 12)),
-                const SizedBox(width: 14),
-                for (final label in ['Active', 'Done', 'Automation', 'Paused', 'Error'])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 14),
-                    child: Text(label, style: const TextStyle(color: _muted, fontSize: 12)),
-                  ),
-                const Spacer(),
-                OutlinedButton.icon(
-                  onPressed: onAddLinks,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Add links'),
-                ),
-              ],
-            ),
+  Widget build(BuildContext context) {
+    final query = search.text.trim().toLowerCase();
+    final visible = posts.where((post) {
+      final title = (post['title'] ?? '').toString() + ' ' +
+          (post['thread_title'] ?? '').toString() + ' ' + (post['post_id'] ?? '').toString();
+      return query.isEmpty || title.toLowerCase().contains(query);
+    }).toList();
+    return Column(
+      children: [
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _line))),
+          child: Row(
+            children: [
+              Text('All (' + posts.length.toString() + ')', style: const TextStyle(color: _accent, fontSize: 12)),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: selectedKeys.isEmpty ? null : onRemoveSelected,
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: Text('Remove selected (' + selectedKeys.length.toString() + ')'),
+              ),
+              TextButton(onPressed: posts.isEmpty ? null : onClear, child: const Text('Clear list')),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: onAddLinks,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add links'),
+              ),
+            ],
           ),
-          if (summary.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              color: const Color(0xFFEAF3FC),
-              child: Text(summary, style: const TextStyle(fontSize: 12)),
-            ),
+        ),
+        if (summary.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(9),
+            color: const Color(0xFFEAF3FC),
+            child: Text(summary, style: const TextStyle(fontSize: 12)),
+          ),
+        if (visible.isEmpty)
           const Expanded(
             child: Center(
               child: Column(
@@ -630,31 +756,49 @@ class PostsTab extends StatelessWidget {
                   Icon(Icons.download_for_offline_outlined, size: 42, color: Color(0xFF9AA8B2)),
                   SizedBox(height: 10),
                   Text('No posts yet', style: TextStyle(color: _muted, fontSize: 13)),
+                  SizedBox(height: 4),
+                  Text('Add a thread or post link to populate this list.', style: TextStyle(color: _muted, fontSize: 11)),
                 ],
               ),
             ),
-          ),
-          Container(
-            height: 28,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: _line))),
-            child: const Row(
-              children: [
-                _PostColumnLabel('#', 38),
-                _PostColumnLabel('Preview', 90),
-                _PostColumnLabel('Title', 1),
-                _PostColumnLabel('Progress', 90),
-                _PostColumnLabel('Status', 80),
-                _PostColumnLabel('Automation', 100),
-                _PostColumnLabel('Path', 1),
-                _PostColumnLabel('Total', 80),
-                _PostColumnLabel('Hosts', 90),
-                _PostColumnLabel('Added On', 110),
-              ],
+          )
+        else
+          Expanded(
+            child: ListView.separated(
+              itemCount: visible.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final post = visible[index];
+                final key = _key(post);
+                final hosts = (post['hosts'] as List? ?? const [])
+                    .whereType<Map>()
+                    .map((host) => host['host'].toString() + ' (' + host['count'].toString() + ')')
+                    .join(', ');
+                final subtitle = 'Thread: ' + (post['thread_title'] ?? post['thread_id']).toString() +
+                    '  •  Post #' + (post['post_number'] ?? '-').toString() +
+                    '  •  ' + (post['image_count'] ?? 0).toString() + ' images' +
+                    (hosts.isEmpty ? '' : '  •  ' + hosts);
+                return ListTile(
+                  dense: true,
+                  leading: Checkbox(
+                    value: selectedKeys.contains(key),
+                    onChanged: (value) => onToggleSelection(key, value ?? false),
+                  ),
+                  title: Text((post['title'] ?? 'Untitled post').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  trailing: IconButton(
+                    tooltip: 'Copy post URL',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => onCopyUrl((post['url'] ?? '').toString()),
+                    icon: const Icon(Icons.link, size: 18),
+                  ),
+                );
+              },
             ),
           ),
-        ],
-      );
+      ],
+    );
+  }
 }
 
 class _PostColumnLabel extends StatelessWidget {
@@ -670,13 +814,53 @@ class _PostColumnLabel extends StatelessWidget {
 }
 
 class ThreadsTab extends StatelessWidget {
-  const ThreadsTab({super.key});
+  const ThreadsTab({super.key, required this.threads, required this.onRemove, required this.onClear});
+  final List<Map<String, dynamic>> threads;
+  final ValueChanged<int> onRemove;
+  final VoidCallback onClear;
+
   @override
-  Widget build(BuildContext context) => const _EmptyTable(
-        title: 'No threads yet',
-        columns: ['Title', 'URL', 'Count'],
-        action: 'Clear threads',
-      );
+  Widget build(BuildContext context) => Column(
+    children: [
+      Container(
+        height: 42,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            Text('Threads (' + threads.length.toString() + ')', style: const TextStyle(color: _accent, fontSize: 12)),
+            const Spacer(),
+            TextButton(onPressed: threads.isEmpty ? null : onClear, child: const Text('Clear threads')),
+          ],
+        ),
+      ),
+      const Divider(height: 1),
+      if (threads.isEmpty)
+        const Expanded(child: Center(child: Text('No threads yet', style: TextStyle(color: _muted))))
+      else
+        Expanded(
+          child: ListView.separated(
+            itemCount: threads.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final thread = threads[index];
+              final id = thread['thread_id'] as int? ?? 0;
+              return ListTile(
+                dense: true,
+                title: Text((thread['title'] ?? 'Untitled thread').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text((thread['forum'] ?? '').toString() + '  •  ' + id.toString() +
+                    '  •  ' + (thread['post_count'] ?? 0).toString() + ' posts'),
+                trailing: IconButton(
+                  tooltip: 'Remove thread',
+                  onPressed: () => onRemove(id),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                ),
+              );
+            },
+          ),
+        ),
+    ],
+  );
 }
 
 class TasksTab extends StatelessWidget {
