@@ -27,13 +27,17 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Trace SAX response mapping, image filtering, host matching, per-post aggregation and generated post URL.
 - [x] Inspect retry defaults, authentication entry points, cookie usage, queue scheduling and image state lifecycle.
 - [x] Document the requested Network settings section and proxy behavior.
-- [ ] Complete exhaustive GUI inventory: all controls, columns, filters, dialogs, settings, shortcuts and interaction states.
-- [ ] Inspect every host resolver in depth and create authorized fixtures.
+- [x] Inventory the nine Settings sections and record their controls, defaults and validation behavior.
+- [ ] Complete exhaustive GUI inventory: all table columns, filters, dialogs, shortcuts and interaction states.
+- [x] Inspect source for every one of the 16 registered host resolvers and record selectors, request mutations and URL transformations.
+- [ ] Create authorized HTML fixtures and runtime tests for each host resolver.
+- [x] Trace exact folderName generation, including optional post ID suffix.
 - [ ] Complete output-path and filename golden vectors.
 - [ ] Capture reference screenshots and interaction recordings.
-- [ ] Map the full SQLite schema, indexes, settings defaults and migration behavior.
+- [x] Map logical POST, IMAGE, THREAD, METADATA, TASK and POST_ACTION entities and observed indexes from Liquibase.
+- [ ] Verify schema/entity drift and migration behavior against a real legacy database.
 - [ ] Complete third-party dependency, asset and license audit.
-- [ ] Review and sign off the compatibility specification.
+- [ ] Capture a runnable reference baseline and sign off the compatibility specification.
 
 **Exit criteria**
 - [ ] Critical workflows have a written, reviewed behavioral specification.
