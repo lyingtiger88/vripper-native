@@ -7,7 +7,7 @@ Native-first, 64-bit cross-platform evolution of VRipper using **Rust** for the 
 
 ## Project roadmap
 
-The complete phase-by-phase roadmap is published directly on this repository front page below. The canonical editable checklist is also maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Status legend: [x] completed/documented; [ ] pending. Source inspection does not imply runtime verification.
+The complete phase-by-phase checklist is published on this repository front page and maintained canonically in [docs/ROADMAP.md](docs/ROADMAP.md). Status legend: [x] completed/documented; [ ] pending. Source inspection does not imply runtime verification.
 
 Legend: [x] completed/documented; [ ] not yet completed. A source inspection checkbox does not imply that its feature has been ported or runtime-tested.
 
@@ -58,7 +58,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Create the Flutter shell and native library loading path.
 - [x] Add CI checks for Rust formatting, unit tests and Clippy; current Rust checks pass.
 - [ ] Replace JSON-shaped FFI errors with a fully typed, versioned event/error contract.
-- [ ] Define SQLite schema and data import plan.
+- [x] Define SQLite schema compatibility and copy-first legacy import plan.
+- [x] Add bundled SQLite runtime and online-backup API foundation.
 - [x] Add Flutter-side platform secure storage for Viper and proxy credentials; Rust receives credentials only at coordinator initialization.
 - [ ] Add secure cookie/session persistence and complete OS keychain/keystore audit.
 
@@ -80,7 +81,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] Verify all resolvers against authorized host fixtures and reference behavior.
 - [ ] Complete MIME/content validation, overwrite policy, recovery and filename edge cases.
 - [x] Persist discovered post and thread metadata locally in app preferences for restart continuity (initial client-side store).
-- [ ] Replace the initial preferences-backed store with the reference-compatible SQLite schema, task history, logs and cache behavior.
+- [ ] Connect the imported legacy SQLite database to a native DatabaseStore and replace preferences-backed post/thread storage.
+- [ ] Implement SQLite repositories for POST, IMAGE, THREAD, METADATA, TASK and POST_ACTION, including task history, logs and cache behavior.
 - [ ] Implement OS-native system proxy discovery and connection testing.
 - [ ] Implement secure credential/cookie storage and log redaction.
 - [ ] Pass full parser, host, queue, lifecycle and output compatibility suites.
@@ -125,11 +127,15 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 
 ## Phase 5 — Data migration
 
-- [ ] Import SQLite records and relationships without losing IDs or states.
+- [x] Implement read-only legacy database inspection and SQLite online-backup import into a new staging file.
+- [x] Validate core tables, table/column layout, row counts, quick_check and foreign-key integrity before publishing.
+- [x] Add Settings → Database UI to select, inspect and import a copy of the Java database.
+- [ ] Connect imported records to native repositories and UI without losing IDs or states.
 - [ ] Preserve settings, cookies and existing download paths.
 - [ ] Never automatically reorganize or rename existing downloaded files.
 - [ ] Add transactional backup, validation and rollback.
-- [ ] Test migration against representative legacy database fixtures.
+- [x] Add synthetic legacy SQLite fixtures for inspection, successful import, source preservation, destination collision and incompatible database rejection.
+- [ ] Test migration against representative real Java database fixtures from each supported schema generation.
 
 **Exit criteria**
 - [ ] Migration is recoverable and passes old-database fixtures.
@@ -176,7 +182,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 | Host extraction | 16 initial resolver paths transcribed into Rust; synthetic fixtures added; authorized live-host verification pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
 | Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
-| Persistence | Posts/Threads metadata persists in local preferences; SQLite/Liquibase migration and task history pending |
+| Persistence | Rust read-only inspection and safe SQLite online-backup importer plus Flutter import UI implemented; live DatabaseStore/repositories and real legacy fixtures pending |
 | Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
 | Rust engine | Workspace, scanner, output helpers, initial host resolvers, XML parser, FFI and proxy-aware queue pipeline implemented; Rust CI checks pass; SQLite persistence pending |
 | Flutter UI | Posts/Threads extraction records and basic list management implemented; Flutter analysis and widget tests pass; full reference parity pending |
@@ -219,6 +225,8 @@ Shipped applications must not require a separately installed Java Runtime or JVM
 ## Documentation
 
 - [Full roadmap](docs/ROADMAP.md)
+- [Database compatibility and Java import design](docs/DATABASE_COMPATIBILITY_AND_IMPORT.md)
+- [Legacy SQLite schema audit](docs/PERSISTENCE_SCHEMA_AUDIT.md)
 - [Reverse-engineering baseline](docs/REVERSE_ENGINEERING.md)
 - [Reference UI inventory](docs/REFERENCE_UI_INVENTORY.md)
 - [Detailed UI behavior audit](docs/UI_BEHAVIOR_AUDIT.md)
