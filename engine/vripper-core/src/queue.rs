@@ -392,7 +392,7 @@ impl QueueScheduler<'_> {
             }
             let Some(position) = pending
                 .iter()
-                .position(|job| host_counts.get(&job.host).copied().unwrap_or(0) < per_host_limit)
+                .position(|job| host_counts.get(&job.host).copied().unwrap_or(0) < self.per_host_limit)
             else {
                 break;
             };
