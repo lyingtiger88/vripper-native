@@ -254,9 +254,70 @@ fn staging_path(destination: &Path, nonce: u128) -> PathBuf {
     destination.with_file_name(format!(".{file_name}.import-{nonce}.tmp"))
 }
 
+
+/// Read the catalog of an imported database without exposing tokens or changing records.
+/// The projection uses the original Liquibase column names, not a guessed generic schema.
+pub fn read_legacy_catalog(path: &Path) -> Result<serde_json::Value, DatabaseError> {
+    let connection = open_read_only(path)?;
+    let mut statement = connection.prepare(
+        "SELECT ID, POST_ID, THREAD_ID, POST_TITLE, THREAD_TITLE, FORUM, URL, TOTAL, DONE, STATUS, OUTPUT_PATH, FOLDER_NAME, SIZE, DOWNLOADED FROM POST ORDER BY RANK, ID"
+    )?;
+    let posts = statement.query_map([], |row| {
+        Ok(serde_json::json!({
+            "legacy_id": row.get::<_, i64>(0)?,
+            "post_id": row.get::<_, i64>(1)?,
+            "thread_id": row.get::<_, i64>(2)?,
+            "title": row.get::<_, String>(3)?,
+            "thread_title": row.get::<_, String>(4)?,
+            "forum": row.get::<_, String>(5)?,
+            "url": row.get::<_, String>(6)?,
+            "image_count": row.get::<_, i64>(7)?,
+            "done": row.get::<_, i64>(8)?,
+            "status": row.get::<_, String>(9)?,
+            "output_path": row.get::<_, Option<String>>(10)?,
+            "folder_name": row.get::<_, String>(11)?,
+            "size": row.get::<_, i64>(12)?,
+            "downloaded": row.get::<_, i64>(13)?,
+            "legacy": true
+        }))
+    })?.collect::<Result<Vec<_>, _>>()?;
+    let mut statement = connection.prepare(
+        "SELECT ID, THREAD_ID, TITLE, URL, TOTAL FROM THREAD ORDER BY ID"
+    )?;
+    let threads = statement.query_map([], |row| {
+        Ok(serde_json::json!({
+            "legacy_id": row.get::<_, i64>(0)?,
+            "thread_id": row.get::<_, i64>(1)?,
+            "title": row.get::<_, String>(2)?,
+            "url": row.get::<_, String>(3)?,
+            "post_count": row.get::<_, i64>(4)?,
+            "legacy": true
+        }))
+    })?.collect::<Result<Vec<_>, _>>()?;
+    Ok(serde_json::json!({"posts": posts, "threads": threads}))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[test]
+    fn catalog_projects_reference_columns_without_secrets() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("catalog.db");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch("CREATE TABLE POST (ID INTEGER, POST_ID INTEGER, THREAD_ID INTEGER, POST_TITLE TEXT, THREAD_TITLE TEXT, FORUM TEXT, URL TEXT, TOTAL INTEGER, DONE INTEGER, STATUS TEXT, OUTPUT_PATH TEXT, FOLDER_NAME TEXT, SIZE INTEGER, DOWNLOADED INTEGER, RANK INTEGER, TOKEN TEXT);
+            CREATE TABLE THREAD (ID INTEGER, THREAD_ID INTEGER, TITLE TEXT, URL TEXT, TOTAL INTEGER);
+            INSERT INTO POST VALUES (7,700,300,'post','thread','forum','https://example.invalid',2,1,'STOPPED',NULL,'folder',100,50,0,'secret-fixture');
+            INSERT INTO THREAD VALUES (3,300,'thread','https://example.invalid',1);").unwrap();
+        drop(db);
+        let catalog = read_legacy_catalog(&path).unwrap();
+        assert_eq!(catalog["posts"][0]["post_id"], 700);
+        assert_eq!(catalog["posts"][0]["status"], "STOPPED");
+        assert_eq!(catalog["threads"][0]["thread_id"], 300);
+        assert!(!catalog.to_string().contains("secret-fixture"));
+    }
 
     fn legacy_fixture(path: &Path) {
         let connection = Connection::open(path).unwrap();
