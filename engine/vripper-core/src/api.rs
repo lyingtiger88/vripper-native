@@ -52,7 +52,7 @@ struct PostBuilder {
     hosts: Vec<ParsedHostCount>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ParserState {
     thread_id: i64,
     thread_title: String,
@@ -61,6 +61,20 @@ struct ParserState {
     error: String,
     posts: Vec<ParsedPost>,
     current_post: Option<PostBuilder>,
+}
+
+impl Default for ParserState {
+    fn default() -> Self {
+        Self {
+            thread_id: -1,
+            thread_title: String::new(),
+            forum: String::new(),
+            security_token: String::new(),
+            error: String::new(),
+            posts: Vec::new(),
+            current_post: None,
+        }
+    }
 }
 
 impl ParserState {
