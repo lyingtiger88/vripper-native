@@ -1678,6 +1678,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
         if ((_legacyDatabaseReport!['missing_required_tables'] as List? ?? const []).isNotEmpty)
           Text('Missing: ${(_legacyDatabaseReport!['missing_required_tables'] as List).join(', ')}',
               style: const TextStyle(color: Colors.red)),
+        if ((_legacyDatabaseReport!['missing_required_columns'] as List? ?? const []).isNotEmpty)
+          Text('Missing columns: ${(_legacyDatabaseReport!['missing_required_columns'] as List).join(', ')}',
+              style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 10),
         FilledButton.icon(
           onPressed: _databaseBusy || _legacyDatabaseReport!['compatible'] != true ? null : _importLegacyDatabase,
