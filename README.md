@@ -116,7 +116,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] macOS x86-64 + ARM64: packaging, file integration, signing/notarization preparation.
 - [ ] Android ARM64: Rust native library, storage access, foreground/background download lifecycle and secure storage.
 - [ ] iOS ARM64: Rust framework, background execution constraints, document access and Keychain.
-- [ ] Complete Windows x86-64 and Android ARM64 smoke builds through CI; resolve any platform runner/toolchain failures.
+- [x] Complete Windows x86-64 and Android ARM64 smoke builds through CI; both smoke-build jobs pass on the current migration branch.
 - [ ] Add Linux x86-64, macOS x86-64/ARM64 and iOS ARM64 packaging/build jobs.
 
 **Exit criteria**
@@ -172,7 +172,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 |---|---|
 | Reference repository audit | Initial tree and core paths inspected |
 | GUI inventory | Initial shell and key screens documented; exhaustive inventory pending |
-| Site navigation/parsing | Rust URL scanner and XML parser implemented; Rust CI checks pass |
+| Site navigation/parsing | Rust URL scanner and XML parser implemented with synthetic tests; Rust CI checks pass |
 | Host extraction | 16 initial resolver paths transcribed into Rust; synthetic fixtures added; authorized live-host verification pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
 | Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
