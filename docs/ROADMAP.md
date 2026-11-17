@@ -55,7 +55,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Add CI checks for Rust formatting, unit tests and Clippy; current Rust checks pass.
 - [ ] Replace JSON-shaped FFI errors with a fully typed, versioned event/error contract.
 - [ ] Define SQLite schema and data import plan.
-- [ ] Define secure credential/cookie storage adapters.
+- [x] Add Flutter-side platform secure storage for Viper and proxy credentials; Rust receives credentials only at coordinator initialization.
+- [ ] Add secure cookie/session persistence and complete OS keychain/keystore audit.
 
 **Exit criteria**
 - [ ] Engine initializes and shuts down cleanly.
@@ -89,7 +90,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Establish the Flutter shell and primary Posts/Threads/Tasks/Logs navigation.
 - [x] Connect initial link scanning, queue controls, queue status and task list to the native coordinator.
 - [x] Add Settings → Network with Disabled / System / Manual modes, protocol, endpoint, credentials and bypass fields.
-- [ ] Persist settings securely and implement native OS proxy discovery.
+- [x] Persist non-secret network preferences and store proxy/Viper credentials through the platform secure-storage plugin.
+- [ ] Implement native OS proxy discovery and proxy connection testing.
 - [ ] Complete Posts/Threads/Logs data views and reference-equivalent interactions.
 - [ ] Reproduce filters, tables, grids, context actions, dialogs and keyboard behavior.
 - [ ] Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap and cache behavior.
@@ -108,7 +110,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] macOS x86-64 + ARM64: packaging, file integration, signing/notarization preparation.
 - [ ] Android ARM64: Rust native library, storage access, foreground/background download lifecycle and secure storage.
 - [ ] iOS ARM64: Rust framework, background execution constraints, document access and Keychain.
-- [ ] Build and smoke-test every supported target.
+- [ ] Complete Windows x86-64 and Android ARM64 smoke builds through CI; resolve any platform runner/toolchain failures.
+- [ ] Add Linux x86-64, macOS x86-64/ARM64 and iOS ARM64 packaging/build jobs.
 
 **Exit criteria**
 - [ ] All supported targets build reproducibly.
@@ -150,6 +153,12 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] Release artifacts are signed and reproducible.
 - [ ] Upgrade and clean-install scenarios pass.
 - [ ] Licensing and release documentation are complete.
+
+## Practical acceptance
+
+- [x] Publish a first-run Windows/Android practical test checklist in `docs/PRACTICAL_TEST_PLAN.md`.
+- [ ] Produce and inspect Windows x86-64 and Android ARM64 build artifacts.
+- [ ] Complete authorized live-site account, lookup and image-download acceptance tests.
 
 ## Workstream status
 
