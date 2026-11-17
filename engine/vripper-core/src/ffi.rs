@@ -6,7 +6,6 @@
 use crate::scan_links;
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::ptr;
 
 const ENGINE_VERSION: &str = "0.1.0";
 const ABI_VERSION: u32 = 1;
@@ -35,11 +34,14 @@ pub extern "C" fn vripper_abi_version() -> u32 {
 
 /// Scan multiline links using configured base URLs.
 ///
+/// # Safety
+/// Both pointers must be null or point to valid NUL-terminated C strings for the duration of the call.
+///
 /// `input` is UTF-8 text. `configured_bases_json` is a JSON array of strings.
 /// The returned JSON contains `threads`, `posts` and `invalid` arrays.
 /// The caller owns the returned pointer and must call `vripper_string_free`.
 #[unsafe(no_mangle)]
-pub extern "C" fn vripper_scan_links_json(
+pub unsafe extern "C" fn vripper_scan_links_json(
     input: *const c_char,
     configured_bases_json: *const c_char,
 ) -> *mut c_char {
@@ -71,8 +73,11 @@ pub extern "C" fn vripper_scan_links_json(
 }
 
 /// Release a string returned by this library. Passing null is a no-op.
+///
+/// # Safety
+/// The pointer must be null or a pointer previously returned by this library that has not already been freed.
 #[unsafe(no_mangle)]
-pub extern "C" fn vripper_string_free(value: *mut c_char) {
+pub unsafe extern "C" fn vripper_string_free(value: *mut c_char) {
     if !value.is_null() {
         unsafe {
             drop(CString::from_raw(value));
@@ -93,19 +98,19 @@ mod tests {
     fn ffi_scan_returns_owned_json_string() {
         let input = CString::new("https://vipergirls.to/threads/123").unwrap();
         let bases = CString::new(r#"["https://vipergirls.to"]"#).unwrap();
-        let output = vripper_scan_links_json(input.as_ptr(), bases.as_ptr());
+        let output = unsafe { vripper_scan_links_json(input.as_ptr(), bases.as_ptr()) };
         assert!(!output.is_null());
 
         let json = unsafe { CStr::from_ptr(output) }.to_str().unwrap();
         let value: serde_json::Value = serde_json::from_str(json).unwrap();
         assert_eq!(value["threads"][0]["thread_id"], 123);
-        vripper_string_free(output);
+        unsafe { vripper_string_free(output) };
     }
 
     #[test]
     fn ffi_rejects_null_input_without_panicking() {
         let bases = CString::new("[]").unwrap();
-        let output = vripper_scan_links_json(ptr::null(), bases.as_ptr());
+        let output = unsafe { vripper_scan_links_json(std::ptr::null(), bases.as_ptr()) };
         let json = unsafe { CStr::from_ptr(output) }.to_str().unwrap();
         assert!(json.contains("must not be null"));
         vripper_string_free(output);
