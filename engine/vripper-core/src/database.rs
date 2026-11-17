@@ -322,6 +322,74 @@ pub fn native_catalog(path: &Path, replacement: Option<&str>) -> Result<serde_js
     }
 }
 
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LegacyQueueEntry {
+    pub image_id: i64,
+    pub post_id: i64,
+    pub job: crate::queue::QueueJob,
+    pub status: crate::queue::QueueStatus,
+    pub filename: Option<String>,
+    pub bytes_written: u64,
+    pub expected_bytes: Option<u64>,
+    pub destination_path: Option<String>,
+}
+
+/// Import only records from a verified backup; never execute a download on import.
+/// Do not guess a destination when Java has not assigned an output directory.
+pub fn read_legacy_queue(path: &Path) -> Result<Vec<LegacyQueueEntry>, DatabaseError> {
+    use crate::queue::{QueueJob, QueueStatus};
+    let connection = open_read_only(path)?;
+    let mut statement = connection.prepare(
+        r#"SELECT I.ID, P.POST_ID, I.HOST, I.URL, I.THUMB_URL, I."INDEX", I.STATUS, I.FILENAME, I.DOWNLOADED, I.SIZE, P.OUTPUT_PATH, P.FOLDER_NAME FROM IMAGE I JOIN POST P ON P.ID = I.POST_ID_REF ORDER BY P.RANK, P.ID, I."INDEX", I.ID"#
+    )?;
+    let mut rows = statement.query([])?;
+    let mut entries = Vec::new();
+    while let Some(row) = rows.next()? {
+        let image_id: i64 = row.get(0)?;
+        let post_id: i64 = row.get(1)?;
+        let host_number: u8 = row.get(2)?;
+        let host = crate::hosts::HostId::try_from(host_number).map_err(DatabaseError::Integrity)?;
+        let index: usize = row.get(5)?;
+        let original_status: String = row.get(6)?;
+        let filename: String = row.get(7)?;
+        let output: Option<String> = row.get(10)?;
+        let folder: String = row.get(11)?;
+        let Some(output) = output.filter(|value| !value.trim().is_empty()) else { continue; };
+        let folder_path = Path::new(&folder);
+        if folder_path.components().count() != 1 || !matches!(folder_path.components().next(), Some(std::path::Component::Normal(_))) {
+            return Err(DatabaseError::Integrity("unsafe legacy folder name".into()));
+        }
+        let directory = PathBuf::from(output).join(folder_path);
+        if !directory.is_absolute() { continue; }
+        let source_url: String = row.get(3)?;
+        let thumbnail_url: String = row.get(4)?;
+        if !source_url.starts_with("https://") && !source_url.starts_with("http://") { continue; }
+        let status = match original_status.as_str() {
+            "FINISHED" => QueueStatus::Finished,
+            "ERROR" => QueueStatus::Error,
+            "STOPPED" | "PENDING" | "DOWNLOADING" => QueueStatus::Stopped,
+            _ => continue,
+        };
+        let bytes_written: u64 = row.get(8)?;
+        let size: u64 = row.get(9)?;
+        let valid_filename = !filename.is_empty() && Path::new(&filename).components().count() == 1
+            && matches!(Path::new(&filename).components().next(), Some(std::path::Component::Normal(_)));
+        let force_order = valid_filename && filename.starts_with(&format!("{:03}_", index.saturating_add(1)));
+        let destination_path = valid_filename.then(|| directory.join(&filename).to_string_lossy().into_owned());
+        entries.push(LegacyQueueEntry {
+            image_id, post_id,
+            job: QueueJob { id: 0, host, source_url, thumbnail_url, image_index_zero_based: index, force_order, destination_directory: directory },
+            status,
+            filename: valid_filename.then_some(filename),
+            bytes_written,
+            expected_bytes: (size > 0).then_some(size),
+            destination_path,
+        });
+    }
+    Ok(entries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
