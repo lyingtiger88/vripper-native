@@ -280,7 +280,12 @@ async fn run_queue(
                         let _ = reply.send(stopped);
                     }
                     Command::StopAll => {
-                        pending.clear();
+                        for job in pending.drain(..) {
+                            if let Some(item) = items.get_mut(&job.id) {
+                                item.status = QueueStatus::Stopped;
+                                item.queue_rank = None;
+                            }
+                        }
                         for (id, active) in running.drain() {
                             active.abort.abort();
                             if let Some(item) = items.get_mut(&id) {
@@ -455,8 +460,10 @@ fn make_snapshot(
             ordered.push(item);
         }
     }
-    for id in running.keys() {
-        if let Some(item) = items.get(id) {
+    let mut running_ids: Vec<_> = running.keys().copied().collect();
+    running_ids.sort_unstable();
+    for id in running_ids {
+        if let Some(item) = items.get(&id) {
             ordered.push(item.clone());
         }
     }
