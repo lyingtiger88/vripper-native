@@ -19,10 +19,10 @@
 - [x] Initialize target README and this roadmap.
 - [x] Create migration/phase-0-audit branch.
 - [x] Inspect initial desktop shell, main tabs, link scanner, lookup parsers, host base class, download scheduler, image lifecycle, path rules and SQLite connection.
-- [ ] Inventory every screen, menu, dialog, setting, column, filter, keyboard shortcut and interaction.
-- [ ] Inspect all host resolvers and confirm active registration.
-- [ ] Trace SAX response mapping and exact post/image ordering.
-- [ ] Trace all retry, auth, cookie, queue, task and status transitions.
+- [x] Record initial shell, tab, menu, action bar, status bar, Add Links and image workspace inventory; exhaustive controls/settings inventory remains pending.
+- [x] Verify active host registration and inspect resolver selectors for all 16 registered hosts; full resolver behavior fixtures remain pending.
+- [x] Trace SAX response mapping, image filtering, host matching, per-post aggregation and generated post URL.
+- [x] Inspect retry defaults, authentication entry points, cookie usage, queue scheduling and image state lifecycle; exhaustive call-site trace remains pending.
 - [ ] Complete output-path and filename golden vectors.
 - [ ] Capture reference screenshots and authorized local fixtures.
 **Exit:** reviewed behavioral specification for every critical workflow.
