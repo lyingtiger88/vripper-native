@@ -5,6 +5,7 @@
 //! Network access and live host resolution are deliberately not implemented until
 //! authorized fixtures and behavior tests are available.
 
+pub mod api;
 pub mod hosts;
 
 use regex::Regex;
