@@ -35,7 +35,8 @@ The checklist below is the project status at a glance. Completed items are check
 - [x] Implement the native async runtime, queue events, cancellation and bounded concurrency primitives.
 - [ ] Replace JSON-shaped FFI errors with fully typed, versioned error/event contracts.
 - [ ] Define the SQLite schema and data import plan.
-- [ ] Define secure credential and cookie storage adapters.
+- [x] Add Flutter platform secure storage for Viper and proxy credentials.
+- [ ] Add secure cookie/session persistence and complete OS keychain/keystore audit.
 - [x] Create the initial Flutter shell and native engine loading path.
 
 ### Phase 2 — Rust engine parity
@@ -50,7 +51,8 @@ The checklist below is the project status at a glance. Completed items are check
 - [ ] Complete MIME/content validation, overwrite policy, recovery and edge-case filename parity.
 - [ ] Implement persistence, task history, logs and cache behavior.
 - [ ] Implement OS-native system proxy discovery and proxy connection testing.
-- [ ] Implement secure credential/cookie storage and redaction.
+- [x] Store Viper/proxy credentials outside the preferences file using platform secure storage.
+- [ ] Implement secure cookie/session persistence and complete log redaction.
 - [ ] Pass full parser, host, queue, lifecycle and output compatibility suites.
 
 ### Phase 3 — Flutter UI parity
@@ -58,7 +60,8 @@ The checklist below is the project status at a glance. Completed items are check
 - [x] Establish the Flutter shell and primary Posts/Threads/Tasks/Logs navigation.
 - [x] Connect initial link scanning, queue controls, queue status and task list to the native coordinator.
 - [x] Add Settings → Network with Disabled / System / Manual choices and HTTP / HTTPS / SOCKS5 fields.
-- [ ] Persist settings securely and implement native OS proxy discovery.
+- [x] Persist non-secret network settings and store credentials through platform secure storage.
+- [ ] Implement native OS proxy discovery and proxy connection testing.
 - [ ] Complete Posts/Threads/Logs data views and reference-equivalent interactions.
 - [ ] Reproduce filters, tables, grids, context actions, dialogs and keyboard behavior.
 - [ ] Reproduce the image workspace, overview/browse modes, zoom, deep zoom, minimap and cache behavior.
@@ -151,4 +154,4 @@ The compatibility reference is [dev-claw/vripper-project](https://github.com/dev
 
 ## Current milestone
 
-**Native vertical slice / pre-alpha integration.** The Rust workspace passes its current automated unit tests and Clippy checks. The Flutter client now loads the native library, creates a coordinator, submits pasted links, displays queue events and exposes queue controls. The latest Flutter analyzer run is clean; widget tests exposed a compact-width status-strip overflow, now corrected and awaiting the next CI result. Real-site authentication, resolver-by-resolver compatibility, persistence, secure credential storage, full UI parity and signed platform packaging remain incomplete. Do not treat the current branch as a production release.
+**Native vertical slice / pre-alpha integration.** The Rust workspace passes its current automated unit tests and Clippy checks. The Flutter client now loads the native library, creates a coordinator, submits pasted links, displays queue events and exposes queue controls. Flutter analysis and widget tests pass, including compact-width layout coverage. Windows x86-64 and Android ARM64 smoke-build workflows are now in place; their artifacts are still being validated. Real-site authentication, resolver-by-resolver compatibility, persistence, secure credential storage, full UI parity and signed platform packaging remain incomplete. Do not treat the current branch as a production release.
