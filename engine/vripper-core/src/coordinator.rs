@@ -26,6 +26,7 @@ pub struct CoordinatorConfig {
     pub viper_credentials: Option<ViperCredentials>,
     pub request_limit_per_second: u8,
     pub max_attempts: u8,
+    pub connection_timeout_secs: u64,
     pub queue_settings: QueueSettings,
     pub download_path: PathBuf,
     pub temp_path: PathBuf,
@@ -83,10 +84,11 @@ pub struct DownloadCoordinator {
 
 impl DownloadCoordinator {
     pub async fn new(config: CoordinatorConfig) -> Result<Self, CoordinatorError> {
-        let transport = HttpTransport::new(
+        let transport = HttpTransport::new_with_timeout(
             &config.network,
             config.proxy_credentials.as_ref(),
             config.system_proxy.as_ref(),
+            std::time::Duration::from_secs(config.connection_timeout_secs.clamp(1, 300)),
         )?;
 
         let (click_cookies, site_cookies): (Vec<CookieMutation>, Vec<CookieMutation>) =
@@ -107,11 +109,12 @@ impl DownloadCoordinator {
             click_cookies,
         )?;
 
-        let pipeline = HostPipeline::from_transport_with_cookies(
+        let pipeline = HostPipeline::from_transport_with_options(
             transport,
             config.temp_path.clone(),
             config.fetch_original_imx_filename,
             site_cookies,
+            config.max_attempts,
         );
         let queue = QueueManager::new(pipeline, config.queue_settings);
 
