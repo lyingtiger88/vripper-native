@@ -93,7 +93,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Add Settings → Network with Disabled / System / Manual modes, protocol, endpoint, credentials and bypass fields.
 - [x] Persist non-secret network preferences and store proxy/Viper credentials through the platform secure-storage plugin.
 - [ ] Implement native OS proxy discovery and proxy connection testing.
-- [x] Populate Posts and Threads views from native extraction results; add searchable post rows, selection, remove-selected, clear-list and thread removal/clear actions.
+- [x] Populate Posts and Threads views from native extraction results; add post rows, selection, remove-selected, clear-list and thread removal/clear actions.
 - [ ] Complete reference-equivalent filters, post lifecycle states, context actions and Logs data view.
 - [ ] Reproduce filters, tables, grids, context actions, dialogs and keyboard behavior.
 - [ ] Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap and cache behavior.
