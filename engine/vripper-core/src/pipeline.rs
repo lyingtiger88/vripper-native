@@ -5,12 +5,11 @@
 
 use crate::final_image_filename;
 use crate::hosts::{
-    default_image_name, resolve_host_html, FollowUpMethod, HostId, HostResolution,
+    default_image_name, resolve_host_html, HostId, HostResolution,
     ResolvedImage,
 };
 use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint};
 use crate::transport::{DownloadedTempFile, HttpTransport, RequestContext, TransportError};
-use crate::ImageMime;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -250,6 +249,7 @@ impl HostPipeline {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ImageMime;
 
     #[test]
     fn default_referer_matches_reference_host_base() {
