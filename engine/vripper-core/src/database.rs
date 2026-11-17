@@ -45,6 +45,7 @@ pub struct DatabaseReport {
     pub schema_version: Option<String>,
     pub compatible: bool,
     pub missing_required_tables: Vec<String>,
+    pub missing_required_columns: Vec<String>,
     pub tables: Vec<TableReport>,
     pub total_rows: u64,
     pub integrity_check: String,
