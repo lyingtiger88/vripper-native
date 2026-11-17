@@ -166,7 +166,7 @@ class _HomePageState extends State<HomePage> {
       await Directory(downloads.path).create(recursive: true);
       await Directory(temporary.path).create(recursive: true);
       final config = <String, dynamic>{
-        ..._networkSettings,
+        'network': _networkSettings,
         'system_proxy': (_networkSettings['network'] as Map?)?['mode'] == 'system'
             ? _environmentProxyEndpoint()
             : null,
@@ -1022,8 +1022,10 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, required this.initialNetworkSettings});
+  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials});
   final Map<String, dynamic> initialNetworkSettings;
+  final Map<String, dynamic>? initialProxyCredentials;
+  final Map<String, dynamic>? initialViperCredentials;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -1042,11 +1044,13 @@ class _SettingsDialogState extends State<SettingsDialog> {
   final _proxyUser = TextEditingController();
   final _proxyPassword = TextEditingController();
   final _bypass = TextEditingController();
+  final _viperUser = TextEditingController();
+  final _viperPassword = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    final network = widget.initialNetworkSettings['network'] as Map? ?? const {};
+    final network = widget.initialNetworkSettings;
     final mode = network['mode']?.toString() ?? 'disabled';
     _proxyMode = switch (mode) {
       'system' => 'System',
@@ -1058,8 +1062,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _proxyProtocol = protocol.toUpperCase();
     _proxyHost.text = manual['host']?.toString() ?? '';
     _proxyPort.text = manual['port']?.toString() ?? '';
-    _proxyUser.text = (widget.initialNetworkSettings['proxy_credentials'] as Map?)?['username']?.toString() ?? '';
-    _proxyPassword.text = (widget.initialNetworkSettings['proxy_credentials'] as Map?)?['password']?.toString() ?? '';
+    _proxyUser.text = widget.initialProxyCredentials?['username']?.toString() ?? '';
+    _proxyPassword.text = widget.initialProxyCredentials?['password']?.toString() ?? '';
+    _viperUser.text = widget.initialViperCredentials?['username']?.toString() ?? '';
+    _viperPassword.text = widget.initialViperCredentials?['password']?.toString() ?? '';
     _bypass.text = (network['bypass_hosts'] as List? ?? const []).join('\n');
   }
 
@@ -1070,6 +1076,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _proxyUser.dispose();
     _proxyPassword.dispose();
     _bypass.dispose();
+    _viperUser.dispose();
+    _viperPassword.dispose();
     super.dispose();
   }
 
@@ -1116,7 +1124,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 3 ? _networkSettings() : _placeholderSettings(_sections[_selected]),
+                                child: _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : _placeholderSettings(_sections[_selected])),
                               ),
                             ),
                           ],
@@ -1183,6 +1191,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final credentials = username.isNotEmpty && password.isNotEmpty
         ? {'username': username, 'password': password}
         : null;
+    final viperUsername = _viperUser.text.trim();
+    final viperPassword = _viperPassword.text;
+    if (viperUsername.isEmpty != viperPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Viper username and password must be provided together.')),
+      );
+      return;
+    }
     Navigator.pop(context, {
       'network': {
         'mode': mode,
@@ -1190,6 +1206,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
         'bypass_hosts': bypass,
       },
       'proxy_credentials': credentials,
+      'viper_credentials': viperUsername.isNotEmpty && viperPassword.isNotEmpty
+          ? {'username': viperUsername, 'password': viperPassword}
+          : null,
     });
   }
 
@@ -1248,8 +1267,33 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ],
           const SizedBox(height: 14),
           const Text(
-            'Secure credential storage is a requirement; proxy secrets are not yet persisted by this prototype.',
+            'Proxy credentials are stored in the platform secure-storage service; they are not written to the preferences file.',
             style: TextStyle(fontSize: 11, color: _muted),
+          ),
+        ],
+      );
+
+  Widget _viperSettings() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Viper account', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const Text(
+            'Credentials are stored using the platform secure-storage service and are supplied only to the native authentication flow.',
+            style: TextStyle(fontSize: 11, color: _muted),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _viperUser,
+            decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _viperPassword,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
+            onSubmitted: (_) => _saveSettings(),
           ),
         ],
       );
