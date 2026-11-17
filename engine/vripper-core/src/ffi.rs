@@ -113,6 +113,6 @@ mod tests {
         let output = unsafe { vripper_scan_links_json(std::ptr::null(), bases.as_ptr()) };
         let json = unsafe { CStr::from_ptr(output) }.to_str().unwrap();
         assert!(json.contains("must not be null"));
-        vripper_string_free(output);
+        unsafe { vripper_string_free(output) };
     }
 }
