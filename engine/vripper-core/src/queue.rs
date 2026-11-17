@@ -370,9 +370,13 @@ async fn run_queue(
                     Command::Import(entries, reply) => {
                         let mut inserted = Vec::<(u64, i64)>::new();
                         for entry in entries {
-                            if legacy_image_ids.contains(&entry.image_id) || jobs.values().any(|job| job.source_url == entry.job.source_url
+                            if legacy_image_ids.contains(&entry.image_id) {
+                                continue;
+                            }
+                            if jobs.values().any(|job| job.source_url == entry.job.source_url
                                 && job.destination_directory == entry.job.destination_directory
                                 && job.image_index_zero_based == entry.job.image_index_zero_based) {
+                                legacy_image_ids.insert(entry.image_id);
                                 continue;
                             }
                             let id = NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed);
