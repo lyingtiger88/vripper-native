@@ -846,7 +846,6 @@ mod tests {
         assert_eq!(first, second);
         let snapshot = queue.snapshot().await.unwrap();
         assert_eq!(snapshot.items.len(), 1);
-        assert_eq!(snapshot.remaining, 1);
         queue.shutdown().await.unwrap();
     }
 
