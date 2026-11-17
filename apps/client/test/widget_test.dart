@@ -30,6 +30,8 @@ void main() {
     expect(find.text('Viper account'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
 
+    await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Database').last);
     await tester.pumpAndSettle();
     expect(find.text('Legacy Java database'), findsOneWidget);
