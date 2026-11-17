@@ -166,3 +166,21 @@ Re-check the source branch before porting; hashes identify the exact inspected b
 - Capture reference screenshots and authorized local fixtures.
 - Build golden vectors for URL parsing, host resolution, sanitization, filename extension, folder layout, ordering, overwrite and interrupted downloads.
 - Audit GPL-3.0 and all third-party asset/dependency licenses before copying or adapting code.
+
+
+## 11. Expanded audit documents and implementation
+The follow-up source audit is now split into dedicated documents:
+- `HOST_RESOLVER_AUDIT.md`: all 16 registered resolver classes, selectors, request mutations, URL transforms and source blob SHAs.
+- `SETTINGS_INVENTORY.md`: nine existing settings sections, controls, defaults and validation notes.
+- `UI_BEHAVIOR_AUDIT.md`: Posts Table/List/Grid, Threads, Tasks, Logs, menus, shortcuts, Add Links and viewer interactions.
+- `DOWNLOAD_AND_OUTPUT_AUDIT.md`: queue scheduling, cancellation, MIME mapping, file names and directory rules.
+- `PERSISTENCE_SCHEMA_AUDIT.md`: logical schema, entity relationships and migration invariants.
+
+The first Rust implementation slice lives in `engine/vripper-core`:
+- URL scanner and thread/post classification.
+- Forum/post folder naming and path composition.
+- MIME-based image filename normalization and order prefix.
+- 16-host registry and pure HTML resolver layer with synthetic fixtures.
+- Thread lookup XML response parser with synthetic response fixture.
+
+These implementations are authored but must not be considered verified until GitHub Actions passes and they are compared against a runnable reference build.
