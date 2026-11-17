@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["engine/vripper-core"]
+
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0-only"
+rust-version = "1.85"
+
+[workspace.dependencies]
+regex = "1.11"
+thiserror = "2.0"
