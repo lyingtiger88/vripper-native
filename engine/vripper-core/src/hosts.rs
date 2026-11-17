@@ -111,6 +111,15 @@ fn first_attr(document: &Html, css: &str, attribute: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
+fn first_attr_including_empty(document: &Html, css: &str, attribute: &str) -> Option<String> {
+    document
+        .select(&selector(css))
+        .next()
+        .and_then(|node| node.value().attr(attribute))
+        .map(str::trim)
+        .map(str::to_owned)
+}
+
 fn first_text(document: &Html, css: &str) -> Option<String> {
     document
         .select(&selector(css))
@@ -277,7 +286,8 @@ pub fn resolve_host_html(
             Ok(resolved(name, image_url))
         }
         HostId::ImageZilla => {
-            let title = required(first_attr(&document, "img#photo", "title"), "photo title")?;
+            let title = first_attr_including_empty(&document, "img#photo", "title")
+                .ok_or_else(|| "photo title attribute was not found".to_owned())?;
             let name = if title.is_empty() { default_name(source_url) } else { title };
             Ok(resolved(name, source_url.replace("show", "images")))
         }
@@ -317,14 +327,23 @@ pub fn resolve_host_html(
         }
         HostId::Pimpandhost => {
             let request_url = pimpandhost_original_page_url(source_url)?;
+            let Some(after) = follow_up_html else {
+                return Ok(HostResolution::FollowUp(FollowUpRequest {
+                    method: FollowUpMethod::Get,
+                    url: request_url,
+                    referer: None,
+                    form_fields: Vec::new(),
+                    cookies: Vec::new(),
+                }));
+            };
+            let page = Html::parse_document(after);
             let image_url = required(
-                first_attr(&document, "img[class*='original']", "src"),
+                first_attr(&page, "img[class*='original']", "src"),
                 "original image src",
             )?;
             let image_url = format!("https:{image_url}");
-            let name = first_attr(&document, "img[class*='original']", "alt")
+            let name = first_attr(&page, "img[class*='original']", "alt")
                 .unwrap_or_else(|| image_url.rsplit('/').next().unwrap_or(&image_url).to_owned());
-            let _ = request_url;
             Ok(resolved(name, image_url))
         }
         HostId::Pixhost => {
@@ -387,7 +406,6 @@ pub fn imx_direct_image_url(source_url: &str, thumbnail_url: &str) -> Result<Str
     let thumb = thumbnail_url.replace("http:", "https:");
     let prefixes = [
         ("https://image.imx.to/u/t/", "https://image.imx.to/u/i/"),
-        ("https://imx.to/u/t/", "https://image.imx.to/u/i/"),
         ("https://t.imx.to/t/", "https://image.imx.to/u/i/"),
         ("https://imx.to/upload/small/", "https://image.imx.to/u/i/"),
         ("https://i.imx.to/t/", "https://image.imx.to/u/i/"),
@@ -396,6 +414,12 @@ pub fn imx_direct_image_url(source_url: &str, thumbnail_url: &str) -> Result<Str
         if let Some(rest) = thumb.strip_prefix(prefix) {
             return Ok(format!("{replacement}{rest}"));
         }
+    }
+    if thumb.starts_with("https://imx.to/u/t") {
+        return Ok(format!(
+            "https://image.imx.to/u/i/{}",
+            thumb.replace("https://imx.to/u/t/", "")
+        ));
     }
     if thumb.starts_with("https://image.imx.to/u/i/") {
         return Ok(thumb);
@@ -630,6 +654,39 @@ mod tests {
             pimpandhost_original_page_url("http://pimpandhost.com/image-medium.html?x=1#view").unwrap(),
             "https://pimpandhost.com/image?x=1&size=original#view"
         );
+
+        let initial = "<html><body>thumbnail page</body></html>";
+        let request = resolve_host_html(
+            HostId::Pimpandhost,
+            "http://pimpandhost.com/image-medium.html?x=1",
+            "",
+            initial,
+            None,
+            false,
+        )
+        .unwrap();
+        match request {
+            HostResolution::FollowUp(request) => {
+                assert_eq!(request.url, "https://pimpandhost.com/image?x=1&size=original");
+                assert_eq!(request.method, FollowUpMethod::Get);
+            }
+            other => panic!("expected follow-up, got {other:?}"),
+        }
+
+        let after = fixture("pimpandhost.html");
+        let image = resolved(
+            resolve_host_html(
+                HostId::Pimpandhost,
+                "http://pimpandhost.com/image-medium.html?x=1",
+                "",
+                initial,
+                Some(&after),
+                false,
+            )
+            .unwrap(),
+        );
+        assert_eq!(image.name, "sample-pimp");
+        assert_eq!(image.image_url, "https://cdn.pimpandhost.com/sample-pimp.jpg");
     }
 
     #[test]
