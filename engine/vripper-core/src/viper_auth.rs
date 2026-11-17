@@ -7,11 +7,12 @@
 use crate::hosts::CookieMutation;
 use crate::transport::{HttpTransport, RequestContext, TransportError};
 use md5::{Digest, Md5};
+use serde::Deserialize;
 use std::fmt;
 use thiserror::Error;
 use url::Url;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Deserialize)]
 pub struct ViperCredentials {
     pub username: String,
     pub password: String,
