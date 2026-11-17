@@ -12,6 +12,7 @@ pub mod transport;
 pub mod pipeline;
 pub mod queue;
 pub mod viper_api;
+pub mod viper_auth;
 pub mod ffi;
 
 use regex::Regex;
