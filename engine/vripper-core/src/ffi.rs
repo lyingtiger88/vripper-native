@@ -328,6 +328,27 @@ pub extern "C" fn vripper_coordinator_snapshot_json(handle: u64) -> *mut c_char 
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn vripper_coordinator_retry_json(
+    handle: u64,
+    job_id: u64,
+) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let coordinator = match coordinator_for(handle) {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match ffi_runtime().block_on(coordinator.retry(job_id)) {
+            Ok(retried) => serde_json::json!({ "retried": retried }).to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("native coordinator panicked")),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn vripper_coordinator_stop_json(
     handle: u64,
     job_id: u64,
