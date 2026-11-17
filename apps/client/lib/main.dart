@@ -395,6 +395,7 @@ class _HomePageState extends State<HomePage> {
     final data = <String, dynamic>{
       'posts': jsonDecode(jsonEncode(_posts)),
       'threads': jsonDecode(jsonEncode(_threads)),
+      ..._legacyCatalogExtras,
     };
     final write = _catalogWrites.then((_) async {
       await NativeEngine.instance.nativeCatalogInBackground(path, data);
