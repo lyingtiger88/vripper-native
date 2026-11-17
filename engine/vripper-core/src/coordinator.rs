@@ -92,6 +92,7 @@ struct DownloadOptions {
     thread_sublocation: bool,
     append_post_id: bool,
     force_order: bool,
+    site_proxy: String,
 }
 
 pub struct DownloadCoordinator {
@@ -108,6 +109,7 @@ impl DownloadCoordinator {
             thread_sublocation: config.thread_sublocation,
             append_post_id: config.append_post_id,
             force_order: config.force_order,
+            site_proxy: config.site_proxy.clone(),
         };
 
         let transport = HttpTransport::new_with_timeout(
@@ -221,7 +223,7 @@ impl DownloadCoordinator {
             if !thread.error.is_empty() {
                 summary.errors.push(thread.error.clone());
             }
-            let thread_url = format!("{}/threads/{}", configured_bases.first().map(String::as_str).unwrap_or(""), thread.thread_id);
+            let thread_url = format!("{}/threads/{}", self.options.site_proxy.trim_end_matches('/'), thread.thread_id);
             if seen_threads.insert(thread.thread_id) {
                 summary.threads.push(ThreadRecord {
                     thread_id: thread.thread_id,
