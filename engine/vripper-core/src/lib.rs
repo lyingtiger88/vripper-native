@@ -7,25 +7,27 @@
 
 pub mod api;
 pub mod hosts;
+pub mod ffi;
 
 use regex::Regex;
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ThreadLink {
     pub base_url: String,
     pub thread_id: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PostLink {
     pub base_url: String,
     pub thread_id: u64,
     pub post_id: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct ScanResult {
     pub threads: Vec<ThreadLink>,
     pub posts: Vec<PostLink>,
