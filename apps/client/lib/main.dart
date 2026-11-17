@@ -626,6 +626,7 @@ class _SessionDialogState extends State<SessionDialog> {
               ],
             ],
           ),
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
