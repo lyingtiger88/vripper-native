@@ -155,7 +155,7 @@ pub fn build_http_client_with_timeout(
                 .manual_proxy
                 .as_ref()
                 .ok_or(ProxyError::ManualProxyMissing)?;
-            build_proxied_client(endpoint, &config.bypass_hosts, credentials)
+            build_proxied_client(endpoint, &config.bypass_hosts, credentials, timeout)
         }
     }
 }
