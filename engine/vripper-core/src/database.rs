@@ -146,8 +146,9 @@ fn inspect_connection(path: &Path, connection: &Connection) -> Result<DatabaseRe
     Ok(DatabaseReport {
         file_name: path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_owned(),
         schema_version,
-        compatible: missing_required_tables.is_empty(),
+        compatible: missing_required_tables.is_empty() && missing_required_columns.is_empty(),
         missing_required_tables,
+        missing_required_columns,
         tables,
         total_rows,
         integrity_check: integrity_check(connection)?,
