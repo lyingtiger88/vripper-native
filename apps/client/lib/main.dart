@@ -1,7 +1,10 @@
 // ignore_for_file: deprecated_member_use
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'native_engine.dart';
 
@@ -62,14 +65,16 @@ class _HomePageState extends State<HomePage> {
   String? _coordinatorError;
   Map<String, dynamic> _queueSnapshot = const {};
   Map<String, dynamic> _networkSettings = {
-    'network': {'mode': 'disabled', 'manual_proxy': null, 'bypass_hosts': <String>[]},
-    'proxy_credentials': null,
+    'mode': 'disabled', 'manual_proxy': null, 'bypass_hosts': <String>[],
   };
+  Map<String, dynamic>? _proxyCredentials;
+  Map<String, dynamic>? _viperCredentials;
+  static const _secureStorage = FlutterSecureStorage();
 
   @override
   void initState() {
     super.initState();
-    _initializeCoordinator();
+    _loadSettingsAndInitialize();
   }
 
   @override
@@ -80,6 +85,30 @@ class _HomePageState extends State<HomePage> {
     }
     _search.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSettingsAndInitialize() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = preferences.getString('vripper.network.settings');
+      if (encoded != null) {
+        final decoded = jsonDecode(encoded);
+        if (decoded is Map) _networkSettings = Map<String, dynamic>.from(decoded);
+      }
+      final proxyUser = await _secureStorage.read(key: 'vripper.proxy.username');
+      final proxyPassword = await _secureStorage.read(key: 'vripper.proxy.password');
+      if (proxyUser != null && proxyPassword != null) {
+        _proxyCredentials = {'username': proxyUser, 'password': proxyPassword};
+      }
+      final viperUser = await _secureStorage.read(key: 'vripper.viper.username');
+      final viperPassword = await _secureStorage.read(key: 'vripper.viper.password');
+      if (viperUser != null && viperPassword != null) {
+        _viperCredentials = {'username': viperUser, 'password': viperPassword};
+      }
+    } catch (error) {
+      if (mounted) setState(() => _coordinatorError = 'Could not load saved settings: $error');
+    }
+    await _initializeCoordinator();
   }
 
   Map<String, dynamic>? _environmentProxyEndpoint() {
@@ -141,12 +170,12 @@ class _HomePageState extends State<HomePage> {
         'system_proxy': (_networkSettings['network'] as Map?)?['mode'] == 'system'
             ? _environmentProxyEndpoint()
             : null,
-        'proxy_credentials': (_networkSettings['network'] as Map?)?['mode'] == 'system'
+        'proxy_credentials': (_networkSettings['mode'] == 'system'
             ? _environmentProxyCredentials()
-            : _networkSettings['proxy_credentials'],
+            : _proxyCredentials),
         'viper_host': 'https://vipergirls.to',
         'site_proxy': 'https://vipergirls.to',
-        'viper_credentials': null,
+        'viper_credentials': _viperCredentials,
         'request_limit_per_second': 2,
         'max_attempts': 3,
         'connection_timeout_secs': 30,
@@ -267,21 +296,47 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _storeCredentialPair(
+    String prefix,
+    Map<String, dynamic>? credentials,
+  ) async {
+    final username = credentials?['username']?.toString();
+    final password = credentials?['password']?.toString();
+    if (username == null || username.isEmpty || password == null || password.isEmpty) {
+      await _secureStorage.delete(key: '$prefix.username');
+      await _secureStorage.delete(key: '$prefix.password');
+      return;
+    }
+    await _secureStorage.write(key: '$prefix.username', value: username);
+    await _secureStorage.write(key: '$prefix.password', value: password);
+  }
+
   Future<void> _openSettings() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => SettingsDialog(initialNetworkSettings: _networkSettings),
+      builder: (_) => SettingsDialog(
+        initialNetworkSettings: _networkSettings,
+        initialProxyCredentials: _proxyCredentials,
+        initialViperCredentials: _viperCredentials,
+      ),
     );
     if (!mounted || result == null) return;
+    final network = Map<String, dynamic>.from(result['network'] as Map);
+    final proxyCredentials = result['proxy_credentials'] as Map<String, dynamic>?;
+    final viperCredentials = result['viper_credentials'] as Map<String, dynamic>?;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('vripper.network.settings', jsonEncode(network));
+    await _storeCredentialPair('vripper.proxy', proxyCredentials);
+    await _storeCredentialPair('vripper.viper', viperCredentials);
     final oldHandle = _coordinatorHandle;
     setState(() {
-      _networkSettings = result;
+      _networkSettings = network;
+      _proxyCredentials = proxyCredentials;
+      _viperCredentials = viperCredentials;
       _coordinatorHandle = null;
       _queueSnapshot = const {};
     });
-    if (oldHandle != null) {
-      NativeEngine.instance.destroyCoordinator(oldHandle);
-    }
+    if (oldHandle != null) NativeEngine.instance.destroyCoordinator(oldHandle);
     await _initializeCoordinator();
   }
 
