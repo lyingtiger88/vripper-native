@@ -21,5 +21,22 @@ void main() {
     await tester.tap(find.text('Network').last);
     await tester.pumpAndSettle();
     expect(find.text('Proxy mode'), findsOneWidget);
+
+    await tester.tap(find.text('Viper').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Viper account'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
   });
 }
+
+  testWidgets('status strip remains within compact desktop width', (tester) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const VripperApp());
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
