@@ -146,4 +146,4 @@ The compatibility reference is [dev-claw/vripper-project](https://github.com/dev
 
 ## Current milestone
 
-**Phase 0 is underway.** Source-level audits cover all 16 registered host resolvers, settings, UI interactions, download lifecycle, output naming and the logical SQLite schema. The Rust engine now contains an initial link/output compatibility slice, a host resolver layer and a thread XML parser with synthetic fixtures. CI verification is pending; runtime reference captures and end-to-end parity are still outstanding.
+**Phase 0 is underway.** Source-level audits cover all 16 registered host resolvers, settings, UI interactions, download lifecycle, output naming and the logical SQLite schema. The Rust engine now contains link/output compatibility primitives, all 16 host resolver paths, a thread XML parser, a versioned C ABI and a centralized proxy-aware HTTP client builder. A Flutter UI shell and Network settings prototype are also present. Full request wiring, queue/persistence, platform secure storage and exact UI parity are still outstanding.
