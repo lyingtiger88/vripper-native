@@ -15,6 +15,7 @@ pub mod viper_api;
 pub mod viper_auth;
 pub mod coordinator;
 pub mod ffi;
+pub mod database;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
