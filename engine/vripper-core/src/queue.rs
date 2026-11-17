@@ -42,7 +42,7 @@ impl QueueSettings {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueJob {
     pub id: u64,
     pub host: HostId,
@@ -53,7 +53,7 @@ pub struct QueueJob {
     pub destination_directory: std::path::PathBuf,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum QueueStatus {
     Pending,
@@ -72,7 +72,7 @@ pub enum QueueMove {
     Bottom,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueueItemSnapshot {
     pub id: u64,
     pub host: HostId,
@@ -118,8 +118,61 @@ pub struct QueueEvent {
 pub enum QueueError {
     #[error("download queue is no longer running")]
     Closed,
+    #[error("queue persistence failed: {0}")]
+    Persistence(String),
     #[error("queue response channel closed")]
     ResponseClosed,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct QueueJournal {
+    jobs: HashMap<u64, QueueJob>,
+    items: HashMap<u64, QueueItemSnapshot>,
+}
+
+struct QueueStore {
+    connection: rusqlite::Connection,
+}
+
+impl QueueStore {
+    fn open(path: &std::path::Path) -> Result<(Self, QueueJournal), QueueError> {
+        use rusqlite::OptionalExtension;
+        let connection = rusqlite::Connection::open(path).map_err(persistence_error)?;
+        connection.busy_timeout(std::time::Duration::from_secs(5)).map_err(persistence_error)?;
+        connection.execute_batch("CREATE TABLE IF NOT EXISTS NATIVE_QUEUE (ID INTEGER PRIMARY KEY CHECK(ID=1), DATA TEXT NOT NULL)").map_err(persistence_error)?;
+        let data: Option<String> = connection.query_row("SELECT DATA FROM NATIVE_QUEUE WHERE ID=1", [], |row| row.get(0)).optional().map_err(persistence_error)?;
+        let journal = match data {
+            Some(data) => serde_json::from_str(&data).map_err(persistence_error)?,
+            None => QueueJournal::default(),
+        };
+        Ok((Self { connection }, journal))
+    }
+
+    fn save(&self, jobs: &HashMap<u64, QueueJob>, items: &HashMap<u64, QueueItemSnapshot>) -> Result<(), QueueError> {
+        let data = serde_json::to_string(&serde_json::json!({"jobs": jobs, "items": items})).map_err(persistence_error)?;
+        self.connection.execute("INSERT INTO NATIVE_QUEUE(ID, DATA) VALUES(1, ?1) ON CONFLICT(ID) DO UPDATE SET DATA=excluded.DATA", [data]).map_err(persistence_error)?;
+        Ok(())
+    }
+}
+
+fn persistence_error(error: impl std::fmt::Display) -> QueueError {
+    QueueError::Persistence(error.to_string())
+}
+
+impl QueueJournal {
+    fn recover(&mut self) {
+        // No automatic overwrite after a crash. Preserve unfinished jobs for explicit retry.
+        for item in self.items.values_mut() {
+            if matches!(item.status, QueueStatus::Pending | QueueStatus::Running) {
+                item.status = QueueStatus::Stopped;
+                item.queue_rank = None;
+                item.error = Some("Interrupted by application shutdown; retry explicitly".into());
+            }
+        }
+        if let Some(max) = self.items.keys().chain(self.jobs.keys()).max() {
+            NEXT_JOB_ID.fetch_max(max.saturating_add(1), Ordering::Relaxed);
+        }
+    }
 }
 
 struct RunningJob {
@@ -128,13 +181,14 @@ struct RunningJob {
 }
 
 enum Command {
-    Add(QueueJob, oneshot::Sender<u64>),
+    Add(QueueJob, oneshot::Sender<Result<u64, QueueError>>),
+    Retry(u64, oneshot::Sender<bool>),
     Stop(u64, oneshot::Sender<bool>),
     StopAll,
     Move(u64, QueueMove, oneshot::Sender<bool>),
     ClearFinished,
     Snapshot(oneshot::Sender<QueueSnapshot>),
-    Shutdown,
+    Shutdown(oneshot::Sender<()>),
 }
 
 #[derive(Clone)]
@@ -147,8 +201,18 @@ impl QueueManager {
     pub fn new(pipeline: HostPipeline, settings: QueueSettings) -> Self {
         let (commands, receiver) = mpsc::channel(128);
         let (events, _) = broadcast::channel(256);
-        tokio::spawn(run_queue(pipeline, settings, receiver, events.clone()));
+        tokio::spawn(run_queue(pipeline, settings, receiver, events.clone(), None, QueueJournal::default()));
         Self { commands, events }
+    }
+
+    pub fn persistent(pipeline: HostPipeline, settings: QueueSettings, path: &std::path::Path) -> Result<Self, QueueError> {
+        let (store, mut journal) = QueueStore::open(path)?;
+        journal.recover();
+        store.save(&journal.jobs, &journal.items)?;
+        let (commands, receiver) = mpsc::channel(128);
+        let (events, _) = broadcast::channel(256);
+        tokio::spawn(run_queue(pipeline, settings, receiver, events.clone(), Some(store), journal));
+        Ok(Self { commands, events })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<QueueEvent> {
@@ -163,6 +227,12 @@ impl QueueManager {
             .send(Command::Add(job, reply))
             .await
             .map_err(|_| QueueError::Closed)?;
+        response.await.map_err(|_| QueueError::ResponseClosed)?
+    }
+
+    pub async fn retry(&self, id: u64) -> Result<bool, QueueError> {
+        let (reply, response) = oneshot::channel();
+        self.commands.send(Command::Retry(id, reply)).await.map_err(|_| QueueError::Closed)?;
         response.await.map_err(|_| QueueError::ResponseClosed)
     }
 
@@ -208,10 +278,9 @@ impl QueueManager {
     }
 
     pub async fn shutdown(&self) -> Result<(), QueueError> {
-        self.commands
-            .send(Command::Shutdown)
-            .await
-            .map_err(|_| QueueError::Closed)
+        let (reply, response) = oneshot::channel();
+        self.commands.send(Command::Shutdown(reply)).await.map_err(|_| QueueError::Closed)?;
+        response.await.map_err(|_| QueueError::ResponseClosed)
     }
 }
 
@@ -220,10 +289,13 @@ async fn run_queue(
     settings: QueueSettings,
     mut commands: mpsc::Receiver<Command>,
     events: broadcast::Sender<QueueEvent>,
+    store: Option<QueueStore>,
+    journal: QueueJournal,
 ) {
+    let mut jobs = journal.jobs;
     let mut pending = VecDeque::<QueueJob>::new();
     let mut running = HashMap::<u64, RunningJob>::new();
-    let mut items = HashMap::<u64, QueueItemSnapshot>::new();
+    let mut items = journal.items;
     let mut workers = JoinSet::<(u64, Result<CompletedImage, PipelineError>)>::new();
     let scheduler = QueueScheduler {
         pipeline: &pipeline,
@@ -232,6 +304,9 @@ async fn run_queue(
     };
 
     loop {
+        if let Some(store) = &store {
+            if store.save(&jobs, &items).is_err() { break; }
+        }
         scheduler.schedule_pending(
             &mut pending,
             &mut running,
@@ -240,6 +315,9 @@ async fn run_queue(
             &events,
         );
 
+        if let Some(store) = &store {
+            if store.save(&jobs, &items).is_err() { break; }
+        }
         tokio::select! {
             command = commands.recv() => {
                 let Some(command) = command else { break; };
@@ -257,9 +335,35 @@ async fn run_queue(
                             expected_bytes: None,
                             error: None,
                         });
+                        jobs.insert(id, job.clone());
+                        if let Some(store) = &store {
+                            if let Err(error) = store.save(&jobs, &items) {
+                                jobs.remove(&id);
+                                items.remove(&id);
+                                let _ = reply.send(Err(error));
+                                continue;
+                            }
+                        }
                         pending.push_back(job);
-                        let _ = reply.send(id);
+                        let _ = reply.send(Ok(id));
                         publish(&events, QueueEventKind::Added, items.get(&id).cloned(), &pending, &running, &items);
+                    }
+                    Command::Retry(id, reply) => {
+                        let retry = items.get(&id).is_some_and(|item| matches!(item.status, QueueStatus::Stopped | QueueStatus::Error));
+                        if retry {
+                            if let Some(job) = jobs.get(&id) {
+                                if let Some(item) = items.get_mut(&id) {
+                                    item.status = QueueStatus::Pending;
+                                    item.error = None;
+                                    item.queue_rank = Some(pending.len() + 1);
+                                }
+                                pending.push_back(job.clone());
+                                publish(&events, QueueEventKind::Added, items.get(&id).cloned(), &pending, &running, &items);
+                                let _ = reply.send(true);
+                                continue;
+                            }
+                        }
+                        let _ = reply.send(false);
                     }
                     Command::Stop(id, reply) => {
                         let mut stopped = false;
@@ -306,17 +410,21 @@ async fn run_queue(
                     }
                     Command::ClearFinished => {
                         items.retain(|_, item| item.status != QueueStatus::Finished);
+                        jobs.retain(|id, _| items.contains_key(id));
                         publish(&events, QueueEventKind::Cleared, None, &pending, &running, &items);
                     }
                     Command::Snapshot(reply) => {
                         let _ = reply.send(make_snapshot(&pending, &running, &items));
                     }
-                    Command::Shutdown => {
-                        pending.clear();
-                        for active in running.values() {
-                            active.abort.abort();
+                    Command::Shutdown(reply) => {
+                        workers.abort_all();
+                        while workers.join_next().await.is_some() {}
+                        if let Some(store) = &store {
+                            if store.save(&jobs, &items).is_err() { break; }
                         }
-                        break;
+                        drop(store);
+                        let _ = reply.send(());
+                        return;
                     }
                 }
             }
@@ -524,6 +632,22 @@ fn publish(
 mod tests {
     use super::*;
     use crate::network::NetworkConfig;
+
+    #[test]
+    fn journal_restores_finished_and_interrupted_jobs() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("queue.db");
+        let (store, mut journal) = QueueStore::open(&path).unwrap();
+        for (id, status) in [(10, QueueStatus::Running), (11, QueueStatus::Finished)] {
+            journal.items.insert(id, QueueItemSnapshot { id, host: HostId::DPicMe, status, queue_rank: None, filename: None, destination_path: None, bytes_written: 0, expected_bytes: None, error: None });
+        }
+        store.save(&journal.jobs, &journal.items).unwrap();
+        drop(store);
+        let (_, mut restored) = QueueStore::open(&path).unwrap();
+        restored.recover();
+        assert_eq!(restored.items[&10].status, QueueStatus::Stopped);
+        assert_eq!(restored.items[&11].status, QueueStatus::Finished);
+    }
 
     #[test]
     fn zero_global_limit_uses_reference_pool_fallback() {
