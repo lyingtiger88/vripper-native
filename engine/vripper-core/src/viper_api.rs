@@ -238,18 +238,19 @@ mod tests {
             .mount(&server)
             .await;
 
+        let test_host = Url::parse(&server.uri()).unwrap().host_str().unwrap().to_owned();
         let cookies = vec![
             CookieMutation {
                 name: "vg_userid".into(),
                 value: "123".into(),
-                domain: "viper.click".into(),
+                domain: test_host.clone(),
                 path: "/".into(),
                 max_age_seconds: None,
             },
             CookieMutation {
                 name: "vg_password".into(),
                 value: "secret-cookie".into(),
-                domain: "viper.click".into(),
+                domain: test_host,
                 path: "/".into(),
                 max_age_seconds: None,
             },
