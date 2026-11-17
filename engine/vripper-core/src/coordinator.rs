@@ -10,13 +10,13 @@ use crate::transport::{HttpTransport, TransportError};
 use crate::viper_api::{ViperApi, ViperApiError};
 use crate::viper_auth::{ViperAuthError, ViperAuthService, ViperCredentials};
 use crate::{calculate_download_directory, post_folder_name};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::sync::broadcast;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Deserialize)]
 pub struct CoordinatorConfig {
     pub network: NetworkConfig,
     pub proxy_credentials: Option<ProxyCredentials>,
@@ -79,7 +79,6 @@ pub enum CoordinatorError {
 pub struct DownloadCoordinator {
     api: ViperApi,
     queue: QueueManager,
-    config: CoordinatorConfig,
 }
 
 impl DownloadCoordinator {
@@ -118,7 +117,7 @@ impl DownloadCoordinator {
         );
         let queue = QueueManager::new(pipeline, config.queue_settings);
 
-        Ok(Self { api, queue, config })
+        Ok(Self { api, queue })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<crate::queue::QueueEvent> {
