@@ -54,6 +54,7 @@ pub struct DatabaseReport {
     pub tables: Vec<TableReport>,
     pub total_rows: u64,
     pub integrity_check: String,
+    pub foreign_key_violations: usize,
     pub has_liquibase_history: bool,
 }
 
@@ -140,9 +141,12 @@ fn inspect_connection(path: &Path, connection: &Connection) -> Result<DatabaseRe
     let has_liquibase_history = normalized
         .iter()
         .any(|name| name == "DATABASECHANGELOG");
-    let _known_legacy_tables_present = KNOWN_LEGACY_TABLES
-        .iter()
-        .any(|table| normalized.iter().any(|name| name == *table));
+    let mut foreign_key_statement = connection.prepare("PRAGMA foreign_key_check")?;
+    let mut foreign_key_rows = foreign_key_statement.query([])?;
+    let mut foreign_key_violations = 0_usize;
+    while foreign_key_rows.next()?.is_some() {
+        foreign_key_violations += 1;
+    }
 
     Ok(DatabaseReport {
         file_name: path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_owned(),
@@ -152,6 +156,7 @@ fn inspect_connection(path: &Path, connection: &Connection) -> Result<DatabaseRe
         tables,
         total_rows,
         integrity_check: integrity_check(connection)?,
+        foreign_key_violations,
         has_liquibase_history,
     })
 }
@@ -209,8 +214,15 @@ pub fn import_legacy_database(source: &Path, destination: &Path) -> Result<Impor
                 imported_report.missing_required_tables.join(", "),
             ));
         }
+        let same_schema = source_report.tables.iter().zip(imported_report.tables.iter()).all(|(source_table, imported_table)| {
+            source_table.name.eq_ignore_ascii_case(&imported_table.name)
+                && source_table.columns == imported_table.columns
+                && source_table.row_count == imported_table.row_count
+        });
         if source_report.total_rows != imported_report.total_rows
             || source_report.tables.len() != imported_report.tables.len()
+            || !same_schema
+            || imported_report.foreign_key_violations != 0
         {
             return Err(DatabaseError::Integrity(
                 "source and imported table/row totals differ".to_owned(),
@@ -285,6 +297,7 @@ mod tests {
         assert!(report.compatible);
         assert!(report.has_liquibase_history);
         assert_eq!(report.total_rows, 7);
+        assert_eq!(report.foreign_key_violations, 0);
         assert!(report.tables.iter().any(|table| table.name == "POST" && table.row_count == 1));
         assert!(source.exists());
     }
