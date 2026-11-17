@@ -282,10 +282,14 @@ mod tests {
     }
 
     #[test]
-    fn omits_posts_without_supported_linked_images() {
-        let xml = r#"<thread id="1" title="T"><post id="2" number="1"><image type="unlinked" main_url="https://imgbox.com/x"/><image type="linked" main_url="https://unknown.invalid/x"/></post></thread>"#;
+    fn retains_post_metadata_even_without_supported_linked_images() {
+        let xml = r#"<thread id="1" title="T"><post id="2" number="1" title="Metadata only"><image type="unlinked" main_url="https://imgbox.com/x"/><image type="linked" main_url="https://unknown.invalid/x"/></post></thread>"#;
         let thread = parse_thread_response(xml, "https://vipergirls.to").unwrap();
-        assert!(thread.posts.is_empty());
+        assert_eq!(thread.posts.len(), 1);
+        assert_eq!(thread.posts[0].post_id, 2);
+        assert_eq!(thread.posts[0].title, "Metadata only");
+        assert_eq!(thread.posts[0].image_count, 0);
+        assert!(thread.posts[0].images.is_empty());
     }
 
     #[test]
