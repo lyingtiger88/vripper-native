@@ -75,7 +75,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Implement streamed temporary-file downloads and initial output naming/path rules.
 - [ ] Verify all resolvers against authorized host fixtures and reference behavior.
 - [ ] Complete MIME/content validation, overwrite policy, recovery and filename edge cases.
-- [ ] Implement database persistence, task history, logs and cache behavior.
+- [x] Persist discovered post and thread metadata locally in app preferences for restart continuity (initial client-side store).
+- [ ] Replace the initial preferences-backed store with the reference-compatible SQLite schema, task history, logs and cache behavior.
 - [ ] Implement OS-native system proxy discovery and connection testing.
 - [ ] Implement secure credential/cookie storage and log redaction.
 - [ ] Pass full parser, host, queue, lifecycle and output compatibility suites.
@@ -92,7 +93,8 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Add Settings → Network with Disabled / System / Manual modes, protocol, endpoint, credentials and bypass fields.
 - [x] Persist non-secret network preferences and store proxy/Viper credentials through the platform secure-storage plugin.
 - [ ] Implement native OS proxy discovery and proxy connection testing.
-- [ ] Complete Posts/Threads/Logs data views and reference-equivalent interactions.
+- [x] Populate Posts and Threads views from native extraction results; add searchable post rows, selection, remove-selected, clear-list and thread removal/clear actions.
+- [ ] Complete reference-equivalent filters, post lifecycle states, context actions and Logs data view.
 - [ ] Reproduce filters, tables, grids, context actions, dialogs and keyboard behavior.
 - [ ] Reproduce image workspace, overview/browse modes, navigation, zoom, deep zoom, minimap and cache behavior.
 - [ ] Adapt mobile layouts while preserving workflows and semantics.
@@ -170,10 +172,10 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 | Host extraction | 16 resolver implementations transcribed into Rust; synthetic fixtures added; CI validation pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
 | Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
-| Persistence | SQLite/Liquibase identified; full schema mapping pending |
+| Persistence | Posts/Threads metadata persists in local preferences; SQLite/Liquibase migration and task history pending |
 | Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
 | Rust engine | Workspace, scanner, output helpers, host resolvers, XML parser, FFI and proxy client builder authored; CI verification and queue/persistence pending |
-| Flutter UI | Not started |
+| Flutter UI | Posts/Threads extraction records and basic list management implemented; parity and full lifecycle controls pending |
 | Platform builds | Not started |
 | CI and packaging | Target matrix defined; implementation pending |
 
