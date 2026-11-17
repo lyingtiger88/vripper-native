@@ -95,6 +95,24 @@ jobs:
           PY
       - name: Build native Rust engine for ARM64
         run: cargo ndk -t arm64-v8a -o apps/client/android/app/src/main/jniLibs build --release -p vripper-core
+      - name: Align file picker library compile SDK
+        working-directory: apps/client
+        run: |
+          flutter pub get
+          python3 - <<'PY'
+          import json, pathlib, re, urllib.parse
+          config = pathlib.Path(".dart_tool/package_config.json").resolve()
+          packages = json.loads(config.read_text())["packages"]
+          picker = next(p for p in packages if p["name"] == "file_picker")
+          uri = urllib.parse.urlparse(urllib.parse.urljoin(config.as_uri(), picker["rootUri"]))
+          root = pathlib.Path(urllib.parse.unquote(uri.path))
+          for path in (root / "android").glob("build.gradle*"):
+              original = path.read_text()
+              updated = re.sub(r'(compileSdk(?:Version)?\s*(?:=\s*)?)34\b', r'\g<1>36', original)
+              if updated != original:
+                  path.write_text(updated)
+                  print("Aligned file_picker compile SDK")
+          PY
       - name: Build Android APK
         working-directory: apps/client
         run: flutter build apk --release --target-platform android-arm64
