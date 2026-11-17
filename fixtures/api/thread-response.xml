@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<thread id="10001" title="Compatibility Fixture Thread">
+  <forum title="Fixture Forum"/>
+  <user hash="fixture-token-not-valid"/>
+  <post id="20001" number="1" title="First fixture post">
+    <image type="linked" main_url="http://imagebam.com/view/sample01" thumb_url="http://thumb.imagebam.com/sample01"/>
+    <image type="unlinked" main_url="https://imagebam.com/view/ignored" thumb_url="https://thumb.imagebam.com/ignored"/>
+    <image type="linked" main_url="https://pixhost.to/show/sample02" thumb_url="https://t.pixhost.to/thumbs/sample02"/>
+  </post>
+  <post id="20002" number="2" title="">
+    <image type="linked" main_url="https://imgbox.com/sample03" thumb_url="https://images.imgbox.com/sample03"/>
+  </post>
+</thread>
