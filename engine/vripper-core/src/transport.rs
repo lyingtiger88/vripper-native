@@ -2,12 +2,13 @@
 //! This module does not implement site-specific logic or bypass site access controls.
 
 use crate::hosts::{CookieMutation, FollowUpMethod, FollowUpRequest};
-use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint, ProxyError, build_http_client};
+use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint, ProxyError, build_http_client, build_http_client_with_timeout};
 use crate::ImageMime;
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_TYPE, COOKIE, REFERER, SET_COOKIE};
 use reqwest::{Client, RequestBuilder, Response};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 use url::Url;
@@ -66,8 +67,22 @@ impl HttpTransport {
         credentials: Option<&ProxyCredentials>,
         system_proxy: Option<&ProxyEndpoint>,
     ) -> Result<Self, TransportError> {
+        Self::new_with_timeout(
+            config,
+            credentials,
+            system_proxy,
+            Duration::from_secs(30),
+        )
+    }
+
+    pub fn new_with_timeout(
+        config: &NetworkConfig,
+        credentials: Option<&ProxyCredentials>,
+        system_proxy: Option<&ProxyEndpoint>,
+        timeout: Duration,
+    ) -> Result<Self, TransportError> {
         Ok(Self {
-            client: build_http_client(config, credentials, system_proxy)?,
+            client: build_http_client_with_timeout(config, credentials, system_proxy, timeout)?,
         })
     }
 
