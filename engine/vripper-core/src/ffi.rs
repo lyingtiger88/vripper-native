@@ -542,6 +542,28 @@ pub unsafe extern "C" fn vripper_database_import_json(
     }
 }
 
+/// Read the imported Java catalog as JSON.
+///
+/// # Safety
+/// path must be a valid NUL-terminated UTF-8 path.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn vripper_database_catalog_json(path: *const c_char) -> *mut c_char {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let path = match read_utf8(path, "database_path") {
+            Ok(value) => value,
+            Err(error) => return json_error(&error),
+        };
+        match crate::database::read_legacy_catalog(std::path::Path::new(&path)) {
+            Ok(value) => value.to_string(),
+            Err(error) => json_error(&error.to_string()),
+        }
+    }));
+    match result {
+        Ok(value) => into_c_string(value),
+        Err(_) => into_c_string(json_error("database catalog panicked")),
+    }
+}
+
 /// Release a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety
