@@ -1,6 +1,6 @@
 //! End-to-end coordinator from pasted links to queued image downloads.
 
-use crate::api::ParsedThread;
+use crate::api::{ParsedHostCount, ParsedImage, ParsedThread};
 use crate::hosts::CookieMutation;
 use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint};
 use crate::pipeline::HostPipeline;
@@ -38,11 +38,36 @@ pub struct CoordinatorConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct ThreadRecord {
+    pub thread_id: i64,
+    pub title: String,
+    pub forum: String,
+    pub url: String,
+    pub post_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct PostRecord {
+    pub thread_id: i64,
+    pub thread_title: String,
+    pub post_id: i64,
+    pub post_number: i32,
+    pub title: String,
+    pub image_count: usize,
+    pub url: String,
+    pub forum: String,
+    pub hosts: Vec<ParsedHostCount>,
+    pub images: Vec<ParsedImage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
 pub struct CoordinatorSummary {
     pub thread_lookups: usize,
     pub post_lookups: usize,
     pub posts_discovered: usize,
     pub images_queued: usize,
+    pub threads: Vec<ThreadRecord>,
+    pub posts: Vec<PostRecord>,
     pub invalid_links: Vec<String>,
     pub errors: Vec<String>,
     pub queue_job_ids: Vec<u64>,
@@ -190,16 +215,40 @@ impl DownloadCoordinator {
             }
         }
 
-        let mut seen_posts = HashSet::<i64>::new();
+        let mut seen_posts = HashSet::<(i64, i64)>::new();
+        let mut seen_threads = HashSet::<i64>::new();
         for thread in parsed_threads {
             if !thread.error.is_empty() {
                 summary.errors.push(thread.error.clone());
             }
+            let thread_url = format!("{}/threads/{}", configured_bases.first().map(String::as_str).unwrap_or(""), thread.thread_id);
+            if seen_threads.insert(thread.thread_id) {
+                summary.threads.push(ThreadRecord {
+                    thread_id: thread.thread_id,
+                    title: thread.title.clone(),
+                    forum: thread.forum.clone(),
+                    url: thread_url,
+                    post_count: thread.posts.len(),
+                });
+            }
             for post in thread.posts {
-                if !seen_posts.insert(post.post_id) {
+                if !seen_posts.insert((post.thread_id, post.post_id)) {
                     continue;
                 }
                 summary.posts_discovered += 1;
+                let record = PostRecord {
+                    thread_id: post.thread_id,
+                    thread_title: post.thread_title.clone(),
+                    post_id: post.post_id,
+                    post_number: post.post_number,
+                    title: post.title.clone(),
+                    image_count: post.image_count,
+                    url: post.url.clone(),
+                    forum: post.forum.clone(),
+                    hosts: post.hosts.clone(),
+                    images: post.images.clone(),
+                };
+                summary.posts.push(record);
 
                 let base_directory = calculate_download_directory(
                     &self.options.download_path,
