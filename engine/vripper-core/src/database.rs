@@ -101,6 +101,7 @@ fn inspect_connection(path: &Path, connection: &Connection) -> Result<DatabaseRe
         .collect();
 
     let mut tables = Vec::with_capacity(names.len());
+    let mut missing_required_columns = Vec::new();
     let mut total_rows = 0_u64;
     let mut schema_version = None;
     for name in &names {
@@ -114,6 +115,14 @@ fn inspect_connection(path: &Path, connection: &Connection) -> Result<DatabaseRe
         let columns = columns_statement
             .query_map([], |row| row.get::<_, String>(1))?
             .collect::<Result<Vec<_>, _>>()?;
+
+        if let Some((_, required_columns)) = REQUIRED_COLUMNS.iter().find(|(table, _)| name.eq_ignore_ascii_case(table)) {
+            for required in *required_columns {
+                if !columns.iter().any(|column| column.eq_ignore_ascii_case(required)) {
+                    missing_required_columns.push(format!("{name}.{required}"));
+                }
+            }
+        }
 
         if name.eq_ignore_ascii_case("DATABASECHANGELOG") {
             let version_sql = format!(
