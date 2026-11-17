@@ -427,9 +427,33 @@ class _HomePageState extends State<HomePage> {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('vripper.network.settings', jsonEncode(network));
     final databasePath = result['database_path'] as String?;
-    if (databasePath != null && databasePath.isNotEmpty) {
-      await preferences.setString('vripper.database.path', databasePath);
-      _databasePath = databasePath;
+    if (databasePath != null && databasePath.isNotEmpty &&
+        databasePath != _databasePath) {
+      try {
+        final catalog = await NativeEngine.instance.readLegacyCatalogInBackground(databasePath);
+        if (!mounted) return;
+        final posts = (catalog['posts'] as List).cast<Map<String, dynamic>>();
+        final threads = (catalog['threads'] as List).cast<Map<String, dynamic>>();
+        final postMap = {for (final post in posts) _postKey(post): post};
+        for (final post in _posts) {
+          postMap.putIfAbsent(_postKey(post), () => post);
+        }
+        final threadMap = {for (final thread in threads) thread['thread_id']: thread};
+        for (final thread in _threads) {
+          threadMap.putIfAbsent(thread['thread_id'], () => thread);
+        }
+        setState(() {
+          _posts = postMap.values.toList();
+          _threads = threadMap.values.toList();
+          _selectedPostKeys.clear();
+        });
+        await _persistPostData();
+        await preferences.setString('vripper.database.path', databasePath);
+        _databasePath = databasePath;
+      } catch (error) {
+        if (mounted) _showMessage('Could not open imported catalog: $error');
+        return;
+      }
     }
     await _storeCredentialPair('vripper.proxy', proxyCredentials);
     await _storeCredentialPair('vripper.viper', viperCredentials);
@@ -1615,7 +1639,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       ],
       const SizedBox(height: 14),
       const Text(
-        'The importer currently validates and copies the legacy SQLite schema and records. Switching the live download engine to this imported store, including ongoing status writes and schema migrations, is a separate integration milestone and is not yet enabled.',
+        'The importer currently validates and copies the legacy SQLite schema and records. Saving settings also loads the imported posts and threads into the catalog. Live SQLite status writes and download resumption are not yet enabled.',
         style: TextStyle(fontSize: 11, color: _muted),
       ),
     ],
