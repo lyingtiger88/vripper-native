@@ -5,7 +5,7 @@ use crate::hosts::{CookieMutation, FollowUpMethod, FollowUpRequest};
 use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint, ProxyError, build_http_client};
 use crate::ImageMime;
 use futures_util::StreamExt;
-use reqwest::header::{CONTENT_TYPE, COOKIE, REFERER};
+use reqwest::header::{CONTENT_TYPE, COOKIE, REFERER, SET_COOKIE};
 use reqwest::{Client, RequestBuilder, Response};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -15,6 +15,12 @@ use url::Url;
 #[derive(Debug, Clone, Default)]
 pub struct RequestContext {
     pub referer: Option<String>,
+    pub cookies: Vec<CookieMutation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FormPostResponse {
+    pub body: String,
     pub cookies: Vec<CookieMutation>,
 }
 
@@ -132,6 +138,34 @@ impl HttpTransport {
             .map_err(|error| TransportError::Request(error.to_string()))
     }
 
+
+    pub async fn post_form(
+        &self,
+        url: &str,
+        fields: &[(String, String)],
+        context: &RequestContext,
+    ) -> Result<FormPostResponse, TransportError> {
+        let builder = self.client.post(url);
+        let builder = self.apply_context(builder, url, context).form(fields);
+        let response = builder
+            .send()
+            .await
+            .map_err(|error| TransportError::Request(error.to_string()))?;
+        let response = checked_response(response)?;
+        let cookies = response
+            .headers()
+            .get_all(SET_COOKIE)
+            .iter()
+            .filter_map(|header| header.to_str().ok())
+            .filter_map(|header| parse_set_cookie(header, url))
+            .collect();
+        let body = response
+            .text()
+            .await
+            .map_err(|error| TransportError::Request(error.to_string()))?;
+        Ok(FormPostResponse { body, cookies })
+    }
+
     pub async fn download_to_temp(
         &self,
         url: &str,
@@ -220,6 +254,38 @@ fn header_string(response: &Response, name: reqwest::header::HeaderName) -> Opti
         .get(name)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned)
+}
+
+
+fn parse_set_cookie(header: &str, request_url: &str) -> Option<CookieMutation> {
+    let parsed_url = Url::parse(request_url).ok()?;
+    let mut parts = header.split(';').map(str::trim);
+    let (name, value) = parts.next()?.split_once('=')?;
+    if name.trim().is_empty() {
+        return None;
+    }
+
+    let mut domain = parsed_url.host_str()?.to_owned();
+    let mut path = "/".to_owned();
+    let mut max_age_seconds = None;
+    for part in parts {
+        if let Some((key, value)) = part.split_once('=') {
+            match key.trim().to_ascii_lowercase().as_str() {
+                "domain" => domain = value.trim().to_ascii_lowercase(),
+                "path" if value.trim().starts_with('/') => path = value.trim().to_owned(),
+                "max-age" => max_age_seconds = value.trim().parse::<u64>().ok(),
+                _ => {}
+            }
+        }
+    }
+
+    Some(CookieMutation {
+        name: name.trim().to_owned(),
+        value: value.trim().to_owned(),
+        domain,
+        path,
+        max_age_seconds,
+    })
 }
 
 fn cookie_header_for_url(url: &str, cookies: &[CookieMutation]) -> Option<String> {
