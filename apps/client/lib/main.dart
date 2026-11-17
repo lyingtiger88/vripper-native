@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
@@ -798,18 +799,6 @@ class PostsTab extends StatelessWidget {
           ),
       ],
     );
-  }
-}
-
-class _PostColumnLabel extends StatelessWidget {
-  const _PostColumnLabel(this.label, this.width);
-  final String label;
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    final child = Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: _muted));
-    return width == 1 ? Expanded(child: child) : SizedBox(width: width, child: child);
   }
 }
 
