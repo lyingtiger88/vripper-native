@@ -2,7 +2,7 @@
 
 use crate::hosts::HostId;
 use crate::pipeline::{CompletedImage, HostPipeline, PipelineError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
@@ -11,7 +11,7 @@ use tokio::task::{AbortHandle, JoinSet};
 
 static NEXT_JOB_ID: AtomicU64 = AtomicU64::new(1);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct QueueSettings {
     /// Zero means the reference fallback pool size of 24.
     pub max_global_concurrent: usize,
@@ -63,7 +63,8 @@ pub enum QueueStatus {
     Stopped,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum QueueMove {
     Top,
     Up,
