@@ -353,6 +353,21 @@ mod tests {
         assert_eq!(ImageMime::from_content_type("application/octet-stream"), None);
     }
 
+
+    #[test]
+    fn parses_set_cookie_domain_path_and_max_age() {
+        let cookie = parse_set_cookie(
+            "vg_userid=42; Domain=.vipergirls.to; Path=/; Max-Age=86400; Secure; HttpOnly",
+            "https://vipergirls.to/login.php",
+        )
+        .unwrap();
+        assert_eq!(cookie.name, "vg_userid");
+        assert_eq!(cookie.value, "42");
+        assert_eq!(cookie.domain, ".vipergirls.to");
+        assert_eq!(cookie.path, "/");
+        assert_eq!(cookie.max_age_seconds, Some(86400));
+    }
+
     #[test]
     fn cookie_header_respects_domain_and_path_scope() {
         let cookies = vec![
