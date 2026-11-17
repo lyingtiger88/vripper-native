@@ -50,6 +50,7 @@ char *vripper_coordinator_destroy_json(uint64_t handle);
 char *vripper_database_inspect_json(const char *path);
 char *vripper_database_import_json(const char *source, const char *destination);
 char *vripper_database_catalog_json(const char *path);
+char *vripper_native_catalog_json(const char *path, const char *data);
 
 /* Release any non-NULL string returned by this library exactly once. */
 void vripper_string_free(char *value);
