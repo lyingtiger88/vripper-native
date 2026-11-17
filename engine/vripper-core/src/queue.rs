@@ -330,6 +330,15 @@ async fn run_queue(
                 let Some(command) = command else { break; };
                 match command {
                     Command::Add(job, reply) => {
+                        if let Some(existing_id) = jobs.iter().find_map(|(id, existing)| {
+                            (existing.source_url == job.source_url
+                                && existing.destination_directory == job.destination_directory
+                                && existing.image_index_zero_based == job.image_index_zero_based
+                                && existing.host == job.host).then_some(*id)
+                        }) {
+                            let _ = reply.send(Ok(existing_id));
+                            continue;
+                        }
                         let id = job.id;
                         items.insert(id, QueueItemSnapshot {
                             id,
@@ -793,6 +802,29 @@ mod tests {
         assert_eq!(restored_item.filename.as_deref(), Some("queued.JPG"));
         assert_eq!(restored_item.destination_path, item.destination_path);
         restored.shutdown().await.unwrap();
+    }
+
+
+    #[tokio::test]
+    async fn duplicate_add_returns_existing_job_without_queueing_twice() {
+        let temp = tempfile::tempdir().unwrap();
+        let pipeline = HostPipeline::new(
+            &NetworkConfig::default(), None, None, temp.path(), false,
+        ).unwrap();
+        let queue = QueueManager::new(pipeline, QueueSettings::default());
+        let job = QueueJob {
+            id: 0, host: HostId::DPicMe,
+            source_url: "https://dpic.me/duplicate.jpg".into(),
+            thumbnail_url: String::new(), image_index_zero_based: 0,
+            force_order: false, destination_directory: temp.path().join("downloads"),
+        };
+        let first = queue.add(job.clone()).await.unwrap();
+        let second = queue.add(job).await.unwrap();
+        assert_eq!(first, second);
+        let snapshot = queue.snapshot().await.unwrap();
+        assert_eq!(snapshot.items.len(), 1);
+        assert_eq!(snapshot.pending, 1);
+        queue.shutdown().await.unwrap();
     }
 
     #[tokio::test]
