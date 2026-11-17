@@ -128,6 +128,8 @@ pub enum QueueError {
 struct QueueJournal {
     jobs: HashMap<u64, QueueJob>,
     items: HashMap<u64, QueueItemSnapshot>,
+    #[serde(default)]
+    legacy_image_ids: std::collections::HashSet<i64>,
 }
 
 struct QueueStore {
@@ -148,8 +150,8 @@ impl QueueStore {
         Ok((Self { connection }, journal))
     }
 
-    fn save(&self, jobs: &HashMap<u64, QueueJob>, items: &HashMap<u64, QueueItemSnapshot>) -> Result<(), QueueError> {
-        let data = serde_json::to_string(&serde_json::json!({"jobs": jobs, "items": items})).map_err(persistence_error)?;
+    fn save(&self, jobs: &HashMap<u64, QueueJob>, items: &HashMap<u64, QueueItemSnapshot>, legacy_image_ids: &std::collections::HashSet<i64>) -> Result<(), QueueError> {
+        let data = serde_json::to_string(&serde_json::json!({"jobs": jobs, "items": items, "legacy_image_ids": legacy_image_ids})).map_err(persistence_error)?;
         self.connection.execute("INSERT INTO NATIVE_QUEUE(ID, DATA) VALUES(1, ?1) ON CONFLICT(ID) DO UPDATE SET DATA=excluded.DATA", [data]).map_err(persistence_error)?;
         Ok(())
     }
@@ -209,7 +211,7 @@ impl QueueManager {
     pub fn persistent(pipeline: HostPipeline, settings: QueueSettings, path: &std::path::Path) -> Result<Self, QueueError> {
         let (store, mut journal) = QueueStore::open(path)?;
         journal.recover();
-        store.save(&journal.jobs, &journal.items)?;
+        store.save(&journal.jobs, &journal.items, &journal.legacy_image_ids)?;
         let (commands, receiver) = mpsc::channel(128);
         let (events, _) = broadcast::channel(256);
         tokio::spawn(run_queue(pipeline, settings, receiver, events.clone(), Some(store), journal));
@@ -303,6 +305,7 @@ async fn run_queue(
     let mut pending = VecDeque::<QueueJob>::new();
     let mut running = HashMap::<u64, RunningJob>::new();
     let mut items = journal.items;
+    let mut legacy_image_ids = journal.legacy_image_ids;
     let mut workers = JoinSet::<(u64, Result<CompletedImage, PipelineError>)>::new();
     let scheduler = QueueScheduler {
         pipeline: &pipeline,
@@ -312,7 +315,7 @@ async fn run_queue(
 
     loop {
         if let Some(store) = &store {
-            if store.save(&jobs, &items).is_err() { break; }
+            if store.save(&jobs, &items, &legacy_image_ids).is_err() { break; }
         }
         scheduler.schedule_pending(
             &mut pending,
@@ -367,7 +370,7 @@ async fn run_queue(
                     Command::Import(entries, reply) => {
                         let mut inserted = Vec::new();
                         for entry in entries {
-                            if jobs.values().any(|job| job.source_url == entry.job.source_url
+                            if legacy_image_ids.contains(&entry.image_id) || jobs.values().any(|job| job.source_url == entry.job.source_url
                                 && job.destination_directory == entry.job.destination_directory
                                 && job.image_index_zero_based == entry.job.image_index_zero_based) {
                                 continue;
@@ -383,10 +386,13 @@ async fn run_queue(
                             });
                             jobs.insert(id, job);
                             inserted.push(id);
+                            legacy_image_ids.insert(entry.image_id);
                         }
                         if let Some(store) = &store {
                             if let Err(error) = store.save(&jobs, &items) {
                                 for id in inserted { jobs.remove(&id); items.remove(&id); }
+                                // Keep the marker set consistent if the transaction could not be saved.
+                                legacy_image_ids.clear();
                                 let _ = reply.send(Err(error));
                                 continue;
                             }
@@ -691,12 +697,14 @@ mod tests {
         for (id, status) in [(10, QueueStatus::Running), (11, QueueStatus::Finished)] {
             journal.items.insert(id, QueueItemSnapshot { id, host: HostId::DPicMe, status, queue_rank: None, filename: None, destination_path: None, bytes_written: 0, expected_bytes: None, error: None });
         }
-        store.save(&journal.jobs, &journal.items).unwrap();
+        journal.legacy_image_ids.insert(1011);
+        store.save(&journal.jobs, &journal.items, &journal.legacy_image_ids).unwrap();
         drop(store);
         let (_, mut restored) = QueueStore::open(&path).unwrap();
         restored.recover();
         assert_eq!(restored.items[&10].status, QueueStatus::Stopped);
         assert_eq!(restored.items[&11].status, QueueStatus::Finished);
+        assert!(restored.legacy_image_ids.contains(&1011));
     }
 
     #[test]
