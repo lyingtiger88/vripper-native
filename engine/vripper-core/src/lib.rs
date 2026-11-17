@@ -10,6 +10,7 @@ pub mod hosts;
 pub mod network;
 pub mod transport;
 pub mod pipeline;
+pub mod queue;
 pub mod ffi;
 
 use regex::Regex;
