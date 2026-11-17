@@ -30,6 +30,8 @@ pub struct CoordinatorConfig {
     pub queue_settings: QueueSettings,
     pub download_path: PathBuf,
     pub temp_path: PathBuf,
+    #[serde(default)]
+    pub queue_database_path: Option<PathBuf>,
     pub forum_subdirectory: bool,
     pub thread_sublocation: bool,
     pub append_post_id: bool,
@@ -144,7 +146,10 @@ impl DownloadCoordinator {
             site_cookies,
             config.max_attempts,
         );
-        let queue = QueueManager::new(pipeline, config.queue_settings);
+        let queue = match config.queue_database_path {
+            Some(path) => QueueManager::persistent(pipeline, config.queue_settings, &path)?,
+            None => QueueManager::new(pipeline, config.queue_settings),
+        };
 
         Ok(Self { api, queue, options })
     }
@@ -155,6 +160,10 @@ impl DownloadCoordinator {
 
     pub async fn snapshot(&self) -> Result<QueueSnapshot, CoordinatorError> {
         Ok(self.queue.snapshot().await?)
+    }
+
+    pub async fn retry(&self, id: u64) -> Result<bool, CoordinatorError> {
+        Ok(self.queue.retry(id).await?)
     }
 
     pub async fn stop(&self, id: u64) -> Result<bool, CoordinatorError> {
