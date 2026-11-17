@@ -2,7 +2,7 @@
 //! This module does not implement site-specific logic or bypass site access controls.
 
 use crate::hosts::{CookieMutation, FollowUpMethod, FollowUpRequest};
-use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint, ProxyError, build_http_client, build_http_client_with_timeout};
+use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint, ProxyError, build_http_client_with_timeout};
 use crate::ImageMime;
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_TYPE, COOKIE, REFERER, SET_COOKIE};
