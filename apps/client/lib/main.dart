@@ -782,21 +782,28 @@ class _StatusStrip extends StatelessWidget {
             const SizedBox(width: 6),
             Text('$session session', style: const TextStyle(fontSize: 11, color: _muted)),
             const SizedBox(width: 14),
-            Text(
-              engineLoaded ? 'Engine ' + NativeEngine.instance.version : 'Native engine not packaged',
-              style: const TextStyle(fontSize: 11, color: _muted),
+            Flexible(
+              child: Text(
+                engineLoaded ? 'Engine ' + NativeEngine.instance.version : 'Native engine unavailable',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: const TextStyle(fontSize: 11, color: _muted),
+              ),
             ),
-            const SizedBox(width: 14),
-            Text(
-              'Running: ' + (queueSnapshot['running']?.toString() ?? '0') +
-                  '  Pending: ' + (queueSnapshot['pending']?.toString() ?? '0') +
-                  '  Done: ' + (queueSnapshot['completed']?.toString() ?? '0'),
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-            if (engineError != null) ...[
+            if (MediaQuery.sizeOf(context).width >= 900) ...[
+              const SizedBox(width: 14),
+              Text(
+                'Running: ' + (queueSnapshot['running']?.toString() ?? '0') +
+                    '  Pending: ' + (queueSnapshot['pending']?.toString() ?? '0') +
+                    '  Done: ' + (queueSnapshot['completed']?.toString() ?? '0'),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: _muted),
+              ),
+            ],
+            if (engineError != null && MediaQuery.sizeOf(context).width >= 1050) ...[
               const SizedBox(width: 8),
-              Expanded(
-                child: Text(engineError!, overflow: TextOverflow.ellipsis,
+              Flexible(
+                child: Text(engineError!, overflow: TextOverflow.ellipsis, maxLines: 1,
                     style: const TextStyle(fontSize: 10, color: Colors.deepOrange)),
               ),
             ],
