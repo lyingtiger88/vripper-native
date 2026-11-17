@@ -38,7 +38,7 @@ Reference source: `vripper-core/src/main/resources/db.changelog-master.xml`, ent
 ### TASK
 - Primary key: ID.
 - Name, category, description, status, result, created/updated timestamps.
-- Optional post association exists in TaskEntity; verify whether current changelog adds that column in a later migration or whether the entity/schema have drifted.
+- Optional POST_ENTITY_ID column is added by Liquibase changeSet 0014 and indexed by TASK_POST_ENTITY_ID_IDX; this matches TaskEntity.postEntityId.
 
 ### POST_ACTION
 - Primary key: ID.
