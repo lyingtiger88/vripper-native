@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 const REQUIRED_TABLES: &[&str] = &["POST", "IMAGE", "THREAD"];
+const REQUIRED_COLUMNS: &[(&str, &[&str])] = &[( "POST", &["ID", "POST_ID", "THREAD_ID", "POST_TITLE", "THREAD_TITLE", "FORUM", "URL", "TOTAL", "DONE", "STATUS", "OUTPUT_PATH", "FOLDER_NAME", "SIZE", "DOWNLOADED", "RANK"]), ("IMAGE", &["ID", "POST_ID_REF", "HOST", "URL", "THUMB_URL", "INDEX", "STATUS", "FILENAME", "DOWNLOADED", "SIZE"]), ("THREAD", &["ID", "THREAD_ID", "TITLE", "URL", "TOTAL"])];
 #[derive(Debug, Error)]
 pub enum DatabaseError {
     #[error("database path does not exist: {0}")]
