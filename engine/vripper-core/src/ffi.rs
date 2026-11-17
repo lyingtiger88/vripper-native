@@ -190,9 +190,13 @@ pub unsafe extern "C" fn vripper_resolve_host_html_json(
 }
 
 
+type CoordinatorRegistry = Mutex<std::collections::HashMap<u64, Arc<DownloadCoordinator>>>;
+type EventReceiver = Arc<AsyncMutex<broadcast::Receiver<crate::queue::QueueEvent>>>;
+type EventRegistry = Mutex<std::collections::HashMap<u64, EventReceiver>>;
+
 static NEXT_COORDINATOR_ID: AtomicU64 = AtomicU64::new(1);
-static COORDINATORS: OnceLock<Mutex<std::collections::HashMap<u64, Arc<DownloadCoordinator>>>> = OnceLock::new();
-static COORDINATOR_EVENTS: OnceLock<Mutex<std::collections::HashMap<u64, Arc<AsyncMutex<broadcast::Receiver<crate::queue::QueueEvent>>>>>> = OnceLock::new();
+static COORDINATORS: OnceLock<CoordinatorRegistry> = OnceLock::new();
+static COORDINATOR_EVENTS: OnceLock<EventRegistry> = OnceLock::new();
 static FFI_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
 fn ffi_runtime() -> &'static Runtime {
