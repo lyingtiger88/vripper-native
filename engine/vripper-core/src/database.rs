@@ -297,6 +297,31 @@ pub fn read_legacy_catalog(path: &Path) -> Result<serde_json::Value, DatabaseErr
     Ok(serde_json::json!({"posts": posts, "threads": threads}))
 }
 
+
+/// Native catalog overlay, independent of the preserved Java tables.
+pub fn native_catalog(path: &Path, replacement: Option<&str>) -> Result<serde_json::Value, DatabaseError> {
+    let mut connection = Connection::open(path)?;
+    connection.busy_timeout(Duration::from_secs(5))?;
+    connection.execute_batch("CREATE TABLE IF NOT EXISTS NATIVE_CATALOG (ID INTEGER PRIMARY KEY CHECK(ID=1), DATA TEXT NOT NULL)")?;
+    if let Some(json) = replacement {
+        let value: serde_json::Value = serde_json::from_str(json)
+            .map_err(|_| DatabaseError::Integrity("invalid catalog JSON".into()))?;
+        if !value["posts"].is_array() || !value["threads"].is_array() {
+            return Err(DatabaseError::Integrity("invalid catalog shape".into()));
+        }
+        let transaction = connection.transaction()?;
+        transaction.execute("INSERT INTO NATIVE_CATALOG(ID,DATA) VALUES(1,?1) ON CONFLICT(ID) DO UPDATE SET DATA=excluded.DATA", [json])?;
+        transaction.commit()?;
+        return Ok(value);
+    }
+    use rusqlite::OptionalExtension;
+    let saved: Option<String> = connection.query_row("SELECT DATA FROM NATIVE_CATALOG WHERE ID=1", [], |row| row.get(0)).optional()?;
+    match saved {
+        Some(json) => serde_json::from_str(&json).map_err(|_| DatabaseError::Integrity("invalid saved catalog".into())),
+        None => Ok(serde_json::Value::Null),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,6 +342,20 @@ mod tests {
         assert_eq!(catalog["posts"][0]["status"], "STOPPED");
         assert_eq!(catalog["threads"][0]["thread_id"], 300);
         assert!(!catalog.to_string().contains("secret-fixture"));
+    }
+
+
+    #[test]
+    fn native_catalog_survives_reopen_and_rejects_invalid_replacement() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("native.db");
+        assert!(native_catalog(&path, None).unwrap().is_null());
+        let data = r#"{"posts":[{"post_id":12}],"threads":[]}"#;
+        native_catalog(&path, Some(data)).unwrap();
+        assert!(native_catalog(&path, Some("{}")).is_err());
+        assert_eq!(native_catalog(&path, None).unwrap()["posts"][0]["post_id"], 12);
+        native_catalog(&path, Some(r#"{"posts":[],"threads":[]}"#)).unwrap();
+        assert_eq!(native_catalog(&path, None).unwrap()["posts"].as_array().unwrap().len(), 0);
     }
 
     fn legacy_fixture(path: &Path) {
