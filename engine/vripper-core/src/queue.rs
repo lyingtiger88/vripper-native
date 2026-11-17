@@ -368,7 +368,7 @@ async fn run_queue(
                         publish(&events, QueueEventKind::Added, items.get(&id).cloned(), &pending, &running, &items);
                     }
                     Command::Import(entries, reply) => {
-                        let mut inserted = Vec::new();
+                        let mut inserted = Vec::<(u64, i64)>::new();
                         for entry in entries {
                             if legacy_image_ids.contains(&entry.image_id) || jobs.values().any(|job| job.source_url == entry.job.source_url
                                 && job.destination_directory == entry.job.destination_directory
@@ -385,14 +385,16 @@ async fn run_queue(
                                 error: (entry.status == QueueStatus::Stopped).then(|| "Imported from Java; retry explicitly".to_owned()),
                             });
                             jobs.insert(id, job);
-                            inserted.push(id);
+                            inserted.push((id, entry.image_id));
                             legacy_image_ids.insert(entry.image_id);
                         }
                         if let Some(store) = &store {
                             if let Err(error) = store.save(&jobs, &items) {
-                                for id in inserted { jobs.remove(&id); items.remove(&id); }
-                                // Keep the marker set consistent if the transaction could not be saved.
-                                legacy_image_ids.clear();
+                                for (id, image_id) in inserted.iter().copied() {
+                                    jobs.remove(&id);
+                                    items.remove(&id);
+                                    legacy_image_ids.remove(&image_id);
+                                }
                                 let _ = reply.send(Err(error));
                                 continue;
                             }
