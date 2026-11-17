@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vripper_native/main.dart';
 
@@ -11,7 +13,7 @@ void main() {
     expect(find.text('Logs'), findsOneWidget);
   });
 
-  testWidgets('opens Settings and exposes the Network section', (tester) async {
+  testWidgets('opens Settings and exposes Network and Viper sections', (tester) async {
     await tester.pumpWidget(const VripperApp());
 
     await tester.tap(find.byTooltip('Settings [Ctrl+P]'));
@@ -27,7 +29,6 @@ void main() {
     expect(find.text('Viper account'), findsOneWidget);
     expect(find.text('Username'), findsOneWidget);
   });
-}
 
   testWidgets('status strip remains within compact desktop width', (tester) async {
     tester.view.physicalSize = const Size(800, 600);
@@ -40,3 +41,4 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+}
