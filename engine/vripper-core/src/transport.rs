@@ -6,7 +6,7 @@ use crate::network::{NetworkConfig, ProxyCredentials, ProxyEndpoint, ProxyError,
 use crate::ImageMime;
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_TYPE, COOKIE, REFERER};
-use reqwest::{Client, RequestBuilder, Response, StatusCode};
+use reqwest::{Client, RequestBuilder, Response};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
