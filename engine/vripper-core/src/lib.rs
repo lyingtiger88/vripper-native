@@ -48,7 +48,10 @@ pub fn scan_links(input: &str, configured_bases: &[String]) -> ScanResult {
             continue;
         }
 
-        let Some(base) = configured_bases.iter().find(|base| link.starts_with(base.as_str())) else {
+        let Some(base) = configured_bases
+            .iter()
+            .find(|base| link.starts_with(base.as_str()))
+        else {
             result.invalid.push(link.to_owned());
             continue;
         };
@@ -70,7 +73,10 @@ pub fn scan_links(input: &str, configured_bases: &[String]) -> ScanResult {
             continue;
         };
 
-        let thread_id = match captures.get(2).and_then(|m| m.as_str().parse::<u64>().ok()) {
+        let thread_id = match captures
+            .get(2)
+            .and_then(|capture| capture.as_str().parse::<u64>().ok())
+        {
             Some(id) => id,
             None => {
                 result.invalid.push(link.to_owned());
@@ -101,7 +107,7 @@ pub fn scan_links(input: &str, configured_bases: &[String]) -> ScanResult {
 /// Reference PathUtils sanitizer: replace dot, slash, backslash, pipe, colon,
 /// question mark, asterisk, quote, angle brackets and control characters with '_'.
 pub fn sanitize_reference_name(value: &str) -> String {
-    let invalid = Regex::new(r#"[.\\/|:?*"<>\p{Cc}]"#).expect("static sanitizer regex");
+    let invalid = Regex::new(r#"[.\\/|:?*"<>p{Cc}]"#).expect("static sanitizer regex");
     invalid.replace_all(value, "_").into_owned()
 }
 
@@ -148,11 +154,16 @@ pub fn final_image_filename(
 ) -> String {
     let extension = supplied_name
         .rsplit_once('.')
-        .map(|(_, ext)| ext.to_ascii_lowercase())
-        .filter(|ext| ["bmp", "gif", "jpg", "jpeg", "png", "webp"].contains(&ext.as_str()));
+        .map(|(_, extension)| extension.to_ascii_lowercase())
+        .filter(|extension| {
+            ["bmp", "gif", "jpg", "jpeg", "png", "webp"].contains(&extension.as_str())
+        });
 
     let base = if extension.is_some() {
-        supplied_name.rsplit_once('.').map(|(base, _)| base).unwrap_or(supplied_name)
+        supplied_name
+            .rsplit_once('.')
+            .map(|(base, _)| base)
+            .unwrap_or(supplied_name)
     } else {
         supplied_name
     };
@@ -201,15 +212,22 @@ mod tests {
             "  https://vipergirls.to/threads/12345\nhttps://vipergirls.to/threads/12345?p=67890\n\n",
             &bases(),
         );
-        assert_eq!(result.threads, vec![ThreadLink {
-            base_url: "https://vipergirls.to".into(),
-            thread_id: 12345,
-        }]);
-        assert_eq!(result.posts, vec![PostLink {
-            base_url: "https://vipergirls.to".into(),
-            thread_id: 12345,
-            post_id: 67890,
-        }]);
+
+        assert_eq!(
+            result.threads,
+            vec![ThreadLink {
+                base_url: "https://vipergirls.to".into(),
+                thread_id: 12345,
+            }]
+        );
+        assert_eq!(
+            result.posts,
+            vec![PostLink {
+                base_url: "https://vipergirls.to".into(),
+                thread_id: 12345,
+                post_id: 67890,
+            }]
+        );
         assert!(result.invalid.is_empty());
     }
 
@@ -219,10 +237,14 @@ mod tests {
             "https://not-configured.example/threads/1\nhttps://vipergirls.to/not-a-thread\n",
             &bases(),
         );
-        assert_eq!(result.invalid, vec![
-            "https://not-configured.example/threads/1",
-            "https://vipergirls.to/not-a-thread"
-        ]);
+
+        assert_eq!(
+            result.invalid,
+            vec![
+                "https://not-configured.example/threads/1",
+                "https://vipergirls.to/not-a-thread"
+            ]
+        );
     }
 
     #[test]
@@ -232,14 +254,21 @@ mod tests {
             "https://vipergirls.to/threads".to_owned(),
         ];
         let result = scan_links("https://vipergirls.to/threads/7", &bases);
+
         assert_eq!(result.threads.len(), 1);
         assert_eq!(result.threads[0].base_url, "https://vipergirls.to");
     }
 
     #[test]
     fn post_folder_name_matches_reference_option() {
-        assert_eq!(post_folder_name("A: title / one", 42, false), "A_ title _ one");
-        assert_eq!(post_folder_name("A: title / one", 42, true), "A_ title _ one_42");
+        assert_eq!(
+            post_folder_name("A: title / one", 42, false),
+            "A_ title _ one"
+        );
+        assert_eq!(
+            post_folder_name("A: title / one", 42, true),
+            "A_ title _ one_42"
+        );
     }
 
     #[test]
@@ -271,6 +300,10 @@ mod tests {
             true,
             true,
         );
-        assert_eq!(path, PathBuf::from("/downloads/Forum_ A/Thread: B"));
+
+        assert_eq!(
+            path,
+            PathBuf::from("/downloads/Forum_ A/Thread: B")
+        );
     }
 }
