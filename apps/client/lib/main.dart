@@ -66,7 +66,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (_) => const AddLinksDialog(),
     );
-    if (text == null || text.trim().isEmpty) return;
+    if (!mounted || text == null || text.trim().isEmpty) return;
     try {
       final result = NativeEngine.instance.scanLinks(
         text,
@@ -91,6 +91,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (_) => SessionDialog(initialSession: _session),
     );
+    if (!mounted) return;
     if (result != null) {
       setState(() => _session = result);
       _showMessage('Session selected: $result. Session transport is not connected yet.');
@@ -555,6 +556,7 @@ class _AddLinksDialogState extends State<AddLinksDialog> {
           width: 520,
           child: TextField(
             controller: _controller,
+            onChanged: (_) => setState(() {}),
             minLines: 6,
             maxLines: 12,
             decoration: const InputDecoration(
