@@ -50,6 +50,7 @@ class NativeEngine {
   _ScanQueueDart? _scanAndQueue;
   _HandleDart? _snapshot;
   _StopDart? _stop;
+  _StopDart? _retry;
   _HandleDart? _stopAll;
   _MoveDart? _move;
   _HandleDart? _clearFinished;
@@ -77,6 +78,7 @@ class NativeEngine {
       _createCoordinator = library.lookupFunction<_CoordinatorCreateNative, _CoordinatorCreateDart>('vripper_coordinator_create_json');
       _scanAndQueue = library.lookupFunction<_ScanQueueNative, _ScanQueueDart>('vripper_coordinator_scan_and_queue_json');
       _snapshot = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_snapshot_json');
+      _retry = library.lookupFunction<_StopNative, _StopDart>('vripper_coordinator_retry_json');
       _stop = library.lookupFunction<_StopNative, _StopDart>('vripper_coordinator_stop_json');
       _stopAll = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_stop_all_json');
       _move = library.lookupFunction<_MoveNative, _MoveDart>('vripper_coordinator_move_json');
@@ -303,6 +305,12 @@ class NativeEngine {
     load();
     if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
     return _decodeOwnedObject(_snapshot!(handle));
+  }
+
+  Map<String, dynamic> retryJob(int handle, int jobId) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    return _decodeOwnedObject(_retry!(handle, jobId));
   }
 
   Map<String, dynamic> stopJob(int handle, int jobId) {
