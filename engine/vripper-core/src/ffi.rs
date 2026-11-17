@@ -217,6 +217,42 @@ mod tests {
         unsafe { vripper_string_free(output) };
     }
 
+
+    #[test]
+    fn ffi_parses_thread_xml_to_json() {
+        let xml = CString::new(
+            r#"<thread id="9" title="T"><post id="10" number="1" title="P"><image type="linked" main_url="https://imgbox.com/a" thumb_url="https://imgbox.com/t"/></post></thread>"#,
+        )
+        .unwrap();
+        let proxy = CString::new("https://vipergirls.to").unwrap();
+        let output = unsafe { vripper_parse_thread_response_json(xml.as_ptr(), proxy.as_ptr()) };
+        let json = unsafe { CStr::from_ptr(output) }.to_str().unwrap();
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert_eq!(value["posts"][0]["post_id"], 10);
+        unsafe { vripper_string_free(output) };
+    }
+
+    #[test]
+    fn ffi_resolves_host_html_to_json() {
+        let source = CString::new("https://dpic.me/view/a").unwrap();
+        let thumb = CString::new("").unwrap();
+        let html = CString::new(r#"<html><img id="pic" alt="sample" src="https://dpic.me/images/a.jpg"></html>"#).unwrap();
+        let output = unsafe {
+            vripper_resolve_host_html_json(
+                1,
+                source.as_ptr(),
+                thumb.as_ptr(),
+                html.as_ptr(),
+                std::ptr::null(),
+                0,
+            )
+        };
+        let json = unsafe { CStr::from_ptr(output) }.to_str().unwrap();
+        let value: serde_json::Value = serde_json::from_str(json).unwrap();
+        assert_eq!(value["Resolved"]["name"], "sample");
+        unsafe { vripper_string_free(output) };
+    }
+
     #[test]
     fn ffi_rejects_null_input_without_panicking() {
         let bases = CString::new("[]").unwrap();
