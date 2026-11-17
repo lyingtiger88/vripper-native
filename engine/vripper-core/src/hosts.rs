@@ -34,6 +34,33 @@ pub struct HostRegistration {
     pub domains: &'static [&'static str],
 }
 
+
+impl TryFrom<u8> for HostId {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Acidimg),
+            1 => Ok(Self::DPicMe),
+            2 => Ok(Self::ImageBam),
+            3 => Ok(Self::ImageTwist),
+            4 => Ok(Self::ImageVenue),
+            5 => Ok(Self::ImageZilla),
+            6 => Ok(Self::Imgbox),
+            7 => Ok(Self::ImgSpice),
+            8 => Ok(Self::Imx),
+            9 => Ok(Self::Pimpandhost),
+            10 => Ok(Self::Pixhost),
+            11 => Ok(Self::PixRoute),
+            12 => Ok(Self::Pixxxels),
+            13 => Ok(Self::PostImg),
+            14 => Ok(Self::TurboImageHost),
+            15 => Ok(Self::ViprIm),
+            _ => Err(format!("unknown host id: {value}")),
+        }
+    }
+}
+
 pub const HOST_REGISTRY: [HostRegistration; 16] = [
     HostRegistration { id: HostId::Acidimg, name: "acidimg", domains: &["acidimg.cc"] },
     HostRegistration { id: HostId::DPicMe, name: "dpic", domains: &["dpic.me"] },
