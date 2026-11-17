@@ -683,12 +683,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
                         itemCount: _sections.length,
                         itemBuilder: (context, index) => Padding(
                           padding: const EdgeInsets.only(bottom: 4),
-                          child: ListTile(
-                            dense: true,
-                            selected: index == _selected,
-                            selectedTileColor: const Color(0xFFE5F0FA),
-                            title: Text(_sections[index], style: const TextStyle(fontSize: 12)),
-                            onTap: () => setState(() => _selected = index),
+                          child: Material(
+                            color: _surface,
+                            child: ListTile(
+                              dense: true,
+                              selected: index == _selected,
+                              selectedTileColor: const Color(0xFFE5F0FA),
+                              title: Text(_sections[index], style: const TextStyle(fontSize: 12)),
+                              onTap: () => setState(() => _selected = index),
+                            ),
                           ),
                         ),
                       ),
