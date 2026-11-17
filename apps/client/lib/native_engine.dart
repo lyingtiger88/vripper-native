@@ -29,6 +29,10 @@ typedef _MoveDart = Pointer<Int8> Function(int, int, Pointer<Int8>);
 typedef _PollNative = Pointer<Int8> Function(Uint64, Uint64);
 typedef _PollDart = Pointer<Int8> Function(int, int);
 typedef _FreeDart = void Function(Pointer<Int8>);
+typedef _DatabaseInspectNative = Pointer<Int8> Function(Pointer<Int8>);
+typedef _DatabaseInspectDart = Pointer<Int8> Function(Pointer<Int8>);
+typedef _DatabaseImportNative = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
+typedef _DatabaseImportDart = Pointer<Int8> Function(Pointer<Int8>, Pointer<Int8>);
 
 class NativeEngine {
   NativeEngine._();
@@ -51,6 +55,8 @@ class NativeEngine {
   _HandleDart? _clearFinished;
   _PollDart? _pollEvent;
   _HandleDart? _destroyCoordinator;
+  _DatabaseInspectDart? _databaseInspect;
+  _DatabaseImportDart? _databaseImport;
   String? loadError;
 
   bool get isLoaded => _library != null;
@@ -75,6 +81,8 @@ class NativeEngine {
       _clearFinished = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_clear_finished_json');
       _pollEvent = library.lookupFunction<_PollNative, _PollDart>('vripper_coordinator_poll_event_json');
       _destroyCoordinator = library.lookupFunction<_HandleNative, _HandleDart>('vripper_coordinator_destroy_json');
+      _databaseInspect = library.lookupFunction<_DatabaseInspectNative, _DatabaseInspectDart>('vripper_database_inspect_json');
+      _databaseImport = library.lookupFunction<_DatabaseImportNative, _DatabaseImportDart>('vripper_database_import_json');
       if (_abiVersion!() != 1) throw StateError('Unsupported native engine ABI version');
     } catch (error) {
       _library = null;
@@ -170,6 +178,36 @@ class NativeEngine {
       if (output != nullptr) _freeString!(output);
     }
   }
+
+  Map<String, dynamic> inspectLegacyDatabase(String path) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final pathPointer = path.toNativeUtf8().cast<Int8>();
+    try {
+      return _decodeOwnedObject(_databaseInspect!(pathPointer));
+    } finally {
+      malloc.free(pathPointer);
+    }
+  }
+
+  Map<String, dynamic> importLegacyDatabase(String sourcePath, String destinationPath) {
+    load();
+    if (!isLoaded) throw StateError(loadError ?? 'Native engine is unavailable');
+    final sourcePointer = sourcePath.toNativeUtf8().cast<Int8>();
+    final destinationPointer = destinationPath.toNativeUtf8().cast<Int8>();
+    try {
+      return _decodeOwnedObject(_databaseImport!(sourcePointer, destinationPointer));
+    } finally {
+      malloc.free(sourcePointer);
+      malloc.free(destinationPointer);
+    }
+  }
+
+  Future<Map<String, dynamic>> inspectLegacyDatabaseInBackground(String path) =>
+      Isolate.run(() => NativeEngine.instance.inspectLegacyDatabase(path));
+
+  Future<Map<String, dynamic>> importLegacyDatabaseInBackground(String source, String destination) =>
+      Isolate.run(() => NativeEngine.instance.importLegacyDatabase(source, destination));
 
   Map<String, dynamic> _decodeObject(Pointer<Int8> output) {
     if (output == nullptr) throw StateError('Native engine returned a null result');
