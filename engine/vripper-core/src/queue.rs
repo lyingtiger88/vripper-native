@@ -182,6 +182,7 @@ struct RunningJob {
 
 enum Command {
     Add(QueueJob, oneshot::Sender<Result<u64, QueueError>>),
+    Import(Vec<crate::database::LegacyQueueEntry>, oneshot::Sender<Result<usize, QueueError>>),
     Retry(u64, oneshot::Sender<bool>),
     Stop(u64, oneshot::Sender<bool>),
     StopAll,
@@ -227,6 +228,12 @@ impl QueueManager {
             .send(Command::Add(job, reply))
             .await
             .map_err(|_| QueueError::Closed)?;
+        response.await.map_err(|_| QueueError::ResponseClosed)?
+    }
+
+    pub async fn import_legacy(&self, entries: Vec<crate::database::LegacyQueueEntry>) -> Result<usize, QueueError> {
+        let (reply, response) = oneshot::channel();
+        self.commands.send(Command::Import(entries, reply)).await.map_err(|_| QueueError::Closed)?;
         response.await.map_err(|_| QueueError::ResponseClosed)?
     }
 
@@ -347,6 +354,36 @@ async fn run_queue(
                         pending.push_back(job);
                         let _ = reply.send(Ok(id));
                         publish(&events, QueueEventKind::Added, items.get(&id).cloned(), &pending, &running, &items);
+                    }
+                    Command::Import(entries, reply) => {
+                        let mut inserted = Vec::new();
+                        for entry in entries {
+                            if jobs.values().any(|job| job.source_url == entry.job.source_url
+                                && job.destination_directory == entry.job.destination_directory
+                                && job.image_index_zero_based == entry.job.image_index_zero_based) {
+                                continue;
+                            }
+                            let id = NEXT_JOB_ID.fetch_add(1, Ordering::Relaxed);
+                            let mut job = entry.job;
+                            job.id = id;
+                            items.insert(id, QueueItemSnapshot {
+                                id, host: job.host, status: entry.status, queue_rank: None,
+                                filename: entry.filename, destination_path: entry.destination_path,
+                                bytes_written: entry.bytes_written, expected_bytes: entry.expected_bytes,
+                                error: (entry.status == QueueStatus::Stopped).then(|| "Imported from Java; retry explicitly".to_owned()),
+                            });
+                            jobs.insert(id, job);
+                            inserted.push(id);
+                        }
+                        if let Some(store) = &store {
+                            if let Err(error) = store.save(&jobs, &items) {
+                                for id in inserted { jobs.remove(&id); items.remove(&id); }
+                                let _ = reply.send(Err(error));
+                                continue;
+                            }
+                        }
+                        let _ = reply.send(Ok(inserted.len()));
+                        publish(&events, QueueEventKind::Added, None, &pending, &running, &items);
                     }
                     Command::Retry(id, reply) => {
                         let retry = items.get(&id).is_some_and(|item| matches!(item.status, QueueStatus::Stopped | QueueStatus::Error));
