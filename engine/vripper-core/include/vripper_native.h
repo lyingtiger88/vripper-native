@@ -39,6 +39,7 @@ char *vripper_coordinator_scan_and_queue_json(
     const char *configured_bases_json
 );
 char *vripper_coordinator_snapshot_json(uint64_t handle);
+char *vripper_coordinator_retry_json(uint64_t handle, uint64_t job_id);
 char *vripper_coordinator_stop_json(uint64_t handle, uint64_t job_id);
 char *vripper_coordinator_stop_all_json(uint64_t handle);
 char *vripper_coordinator_move_json(uint64_t handle, uint64_t job_id, const char *movement);
