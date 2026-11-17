@@ -21,3 +21,6 @@ tempfile.workspace = true
 
 [lib]
 crate-type = ["rlib", "cdylib", "staticlib"]
+
+[dev-dependencies]
+wiremock = "0.6"
