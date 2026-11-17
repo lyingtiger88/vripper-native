@@ -401,6 +401,10 @@ async fn run_queue(
                                 if let Some(item) = items.get_mut(&id) {
                                     item.status = QueueStatus::Pending;
                                     item.error = None;
+                                    item.filename = None;
+                                    item.destination_path = None;
+                                    item.bytes_written = 0;
+                                    item.expected_bytes = None;
                                     item.queue_rank = Some(pending.len() + 1);
                                 }
                                 pending.push_back(job.clone());
