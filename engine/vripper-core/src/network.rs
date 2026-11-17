@@ -6,17 +6,20 @@
 
 use reqwest::{Client, NoProxy, Proxy};
 use std::fmt;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ProxyMode {
     Disabled,
     System,
     Manual,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ProxyProtocol {
     Http,
     Https,
@@ -33,18 +36,23 @@ impl ProxyProtocol {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxyEndpoint {
     pub protocol: ProxyProtocol,
     pub host: String,
     pub port: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct NetworkConfig {
     pub mode: ProxyMode,
     pub manual_proxy: Option<ProxyEndpoint>,
     pub bypass_hosts: Vec<String>,
+}
+
+impl Default for ProxyMode {
+    fn default() -> Self { Self::Disabled }
 }
 
 impl Default for NetworkConfig {
@@ -59,7 +67,7 @@ impl Default for NetworkConfig {
 
 /// Credentials are loaded just-in-time from the OS credential store.
 /// This type deliberately does not implement Serialize.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Deserialize)]
 pub struct ProxyCredentials {
     pub username: String,
     pub password: String,
