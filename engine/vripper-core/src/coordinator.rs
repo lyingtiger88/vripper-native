@@ -105,6 +105,7 @@ pub struct DownloadCoordinator {
     api: ViperApi,
     queue: QueueManager,
     options: DownloadOptions,
+    legacy_database_path: Option<PathBuf>,
 }
 
 impl DownloadCoordinator {
@@ -166,7 +167,7 @@ impl DownloadCoordinator {
                 return Err(error);
             }
         }
-        Ok(Self { api, queue, options })
+        Ok(Self { api, queue, options, legacy_database_path: config.legacy_database_path })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<crate::queue::QueueEvent> {
@@ -207,6 +208,10 @@ impl DownloadCoordinator {
 
     /// Scan multiline input, perform thread/post lookups, deduplicate returned
     /// posts and enqueue each linked image using the reference output path rules.
+    fn legacy_database_path(&self) -> Option<PathBuf> {
+        self.options.legacy_database_path.clone()
+    }
+
     pub async fn scan_and_queue(
         &self,
         input: &str,
@@ -291,7 +296,20 @@ impl DownloadCoordinator {
                     post.post_id.max(0) as u64,
                     self.options.append_post_id,
                 );
-                let destination_directory = base_directory.join(folder);
+                let destination_directory = base_directory.join(folder.clone());
+
+                if let Some(database_path) = self.legacy_database_path() {
+                    if let Err(error) = crate::database::persist_extracted_post(
+                        &database_path,
+                        &thread,
+                        &post,
+                        &base_directory,
+                        &folder,
+                        &self.options.site_proxy,
+                    ) {
+                        summary.errors.push(format!("database persistence failed for post {}: {error}", post.post_id));
+                    }
+                }
 
                 for (index, image) in post.images.into_iter().enumerate() {
                     let job = QueueJob {
