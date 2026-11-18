@@ -42,7 +42,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] Capture reference screenshots and interaction recordings.
 - [x] Map logical POST, IMAGE, THREAD, METADATA, TASK and POST_ACTION entities and observed indexes from Liquibase.
 - [ ] Verify schema/entity drift and migration behavior against a real legacy database.
-- [ ] Complete third-party dependency, asset and license audit.
+- [x] Inventory direct Rust/Flutter dependencies and repository assets in `DEPENDENCY_ASSET_LICENSE_AUDIT.md` (initial inventory only).\n- [ ] Complete transitive license/SBOM review, platform plugin notices, attribution review and reproducible CI license checks.
 - [ ] Capture a runnable reference baseline and sign off the compatibility specification.
 
 **Exit criteria**
