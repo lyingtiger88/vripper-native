@@ -33,7 +33,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Inspect source for every one of the 16 registered host resolvers and record selectors, request mutations and URL transformations.
 - [x] Add synthetic HTML fixtures and resolver unit coverage for all 16 host types.\n- [ ] Capture authorized reference HTML and compare resolver behavior for each host.
 - [x] Trace exact folderName generation, including optional post ID suffix.
-- [x] Expand deterministic native output-path and filename unit vectors (synthetic; Java comparison remains pending).
+- [x] Expand deterministic native output-path and filename unit vectors (synthetic; Java comparison remains pending).\n- [x] Reject unsafe remote thread-title path components before native database registration and download queue insertion; Java parity intentionally yields to path safety.\n- [ ] Validate local symlink/race containment and Windows reserved-name behavior on real target filesystems.
 - [ ] Capture reference screenshots and interaction recordings.
 - [x] Map logical POST, IMAGE, THREAD, METADATA, TASK and POST_ACTION entities and observed indexes from Liquibase.
 - [ ] Verify schema/entity drift and migration behavior against a real legacy database.
@@ -114,7 +114,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] macOS x86-64 + ARM64: packaging, file integration, signing/notarization preparation.
 - [ ] Android ARM64: Rust native library, storage access, foreground/background download lifecycle and secure storage.
 - [ ] iOS ARM64: Rust framework, background execution constraints, document access and Keychain.
-- [x] Complete Windows x86-64 and Android ARM64 smoke builds through CI; both smoke-build jobs pass on the current migration branch.
+- [ ] Complete Windows x86-64 and Android ARM64 smoke builds through CI on the latest branch head; inspect and retain artifacts.
 - [ ] Add Linux x86-64, macOS x86-64/ARM64 and iOS ARM64 packaging/build jobs.
 
 **Exit criteria**
@@ -177,13 +177,13 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 | Site navigation/parsing | Rust URL scanner and XML parser implemented with synthetic tests; Rust CI checks pass |
 | Host extraction | 16 initial resolver paths transcribed into Rust; synthetic fixtures added; authorized live-host verification pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
-| Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
+| Output compatibility | Folder/filename primitives, cross-platform unsafe-path rejection and synthetic tests authored; Java golden comparison and filesystem acceptance pending |
 | Persistence | Verified Java-copy import is now the active writable catalog; extracted POST/IMAGE/THREAD metadata is persisted into the legacy-compatible SQLite tables while download state is preserved; full repositories/TASK/POST_ACTION and real legacy fixtures remain pending |
 | Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
 | Rust engine | Workspace, scanner, output helpers, initial host resolvers, XML parser, FFI and proxy-aware queue pipeline implemented; Rust CI checks pass; SQLite persistence pending |
 | Flutter UI | Posts/Threads extraction records and basic list management implemented; Flutter analysis and widget tests pass; full reference parity pending |
-| Platform builds | Windows x86-64 and Android ARM64 CI smoke builds pass; artifact inspection and live workflow acceptance pending |
-| CI and packaging | Rust, Flutter and Windows/Android smoke-build workflows pass; remaining platform matrix and release packaging pending |
+| Platform builds | Rust native engine compilation passed for Windows x86-64 and Android ARM64 on an earlier head; complete app packaging for the latest head is pending |
+| CI and packaging | Rust and Flutter checks passed on the previous verified head; latest-head CI reruns and final Windows/Android packaging remain pending |
 
 ## Current persistence milestone
 
