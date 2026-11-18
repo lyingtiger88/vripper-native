@@ -144,6 +144,8 @@ impl DownloadCoordinator {
             click_cookies,
         )?;
 
+        let legacy_database_path = config.legacy_database_path.clone();
+
         let pipeline = HostPipeline::from_transport_with_options(
             transport,
             config.temp_path.clone(),
@@ -156,7 +158,7 @@ impl DownloadCoordinator {
             None => QueueManager::new(pipeline, config.queue_settings),
         };
 
-        if let Some(path) = config.legacy_database_path {
+        if let Some(path) = legacy_database_path.clone() {
             let result = async {
                 let entries = crate::database::read_legacy_queue(&path)?;
                 queue.import_legacy(entries).await?;
@@ -167,7 +169,7 @@ impl DownloadCoordinator {
                 return Err(error);
             }
         }
-        Ok(Self { api, queue, options, legacy_database_path: config.legacy_database_path })
+        Ok(Self { api, queue, options, legacy_database_path })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<crate::queue::QueueEvent> {
