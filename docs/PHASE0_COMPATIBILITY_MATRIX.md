@@ -50,7 +50,7 @@ The native resolver registry contains 16 Host IDs. Existing fixture tests cover 
 
 ## Output path and filename behavior
 
-The native engine exposes deterministic implementations for the observed reference rules:
+The native engine exposes deterministic implementations for the observed reference rules, with two deliberate cross-platform safety deviations: unsafe remote path components are rejected, and Windows reserved device filenames are prefixed with an underscore:
 
 - Folder names replace dot, slash, backslash, pipe, colon, question mark, asterisk, quote, angle brackets and control characters with underscores.
 - Optional post ID suffix is appended only when enabled.
