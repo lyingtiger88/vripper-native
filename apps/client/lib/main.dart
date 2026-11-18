@@ -717,6 +717,7 @@ class _HomePageState extends State<HomePage> {
                     search: _search,
                     summary: _scanSummary,
                     posts: _posts,
+                    legacyImages: _legacyCatalogExtras['images'] as List? ?? const [],
                     snapshot: _queueSnapshot,
                     selectedKeys: _selectedPostKeys,
                     onAddLinks: _addLinks,
@@ -902,10 +903,10 @@ class _ToolbarButton extends StatelessWidget {
       );
 }
 
-class PostsTab extends StatelessWidget {
+class PostsTab extends StatefulWidget {
   const PostsTab({
     required this.search, required this.summary, required this.posts,
-    this.snapshot = const {},
+    this.snapshot = const {}, this.legacyImages = const [],
     required this.selectedKeys, required this.onAddLinks,
     required this.onToggleSelection, required this.onRemoveSelected,
     required this.onClear, required this.onCopyUrl,
@@ -913,6 +914,7 @@ class PostsTab extends StatelessWidget {
   final TextEditingController search;
   final String summary;
   final Map<String, dynamic> snapshot;
+  final List<dynamic> legacyImages;
   final List<Map<String, dynamic>> posts;
   final Set<String> selectedKeys;
   final VoidCallback onAddLinks;
@@ -921,126 +923,137 @@ class PostsTab extends StatelessWidget {
   final VoidCallback onClear;
   final ValueChanged<String> onCopyUrl;
 
+  @override
+  State<PostsTab> createState() => _PostsTabState();
+}
+
+class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin {
+  bool _grid = false;
+  String _filter = 'All';
+  @override
+  bool get wantKeepAlive => true;
+
   String _key(Map<String, dynamic> post) =>
-      post['thread_id'].toString() + ':' + post['post_id'].toString();
+      '${post['thread_id']}:${post['post_id']}';
+
+  List<Map> _jobs(Map post) {
+    final ids = (post['queue_job_ids'] as List? ?? []).toSet();
+    return (widget.snapshot['items'] as List? ?? []).whereType<Map>().where((j) => ids.contains(j['id'])).toList();
+  }
+
+  List<Map> _images(Map post) {
+    final embedded = (post['images'] as List? ?? []).whereType<Map>().toList();
+    if (embedded.isNotEmpty) return embedded;
+    final legacyId = post['legacy_id'];
+    if (legacyId == null) return [];
+    return widget.legacyImages.whereType<Map>().where((image) => image['post_legacy_id'] == legacyId).toList();
+  }
+
+  int _total(Map post) {
+    final declared = (post['image_count'] as num?)?.toInt() ?? 0;
+    final jobs = _jobs(post).length;
+    return declared > jobs ? declared : jobs;
+  }
+
+  int _done(Map post) {
+    final jobs = _jobs(post);
+    final completed = jobs.where((j) => j['status'] == 'FINISHED').length;
+    final stored = (post['done'] as num?)?.toInt() ?? 0;
+    return (completed > stored ? completed : stored).clamp(0, _total(post)).toInt();
+  }
+
+  double _fraction(Map post) {
+    final total = _total(post);
+    if (total == 0) return 0;
+    final partial = _jobs(post).where((j) => j['status'] == 'RUNNING').fold<double>(0, (sum, j) {
+      final bytes = j['bytes_written'];
+      final expected = j['expected_bytes'];
+      return sum + (bytes is num && expected is num && expected > 0 ? (bytes / expected).clamp(0.0, 1.0) : 0);
+    });
+    return ((_done(post) + partial) / total).clamp(0.0, 1.0).toDouble();
+  }
+
+  bool _matches(Map post) {
+    final jobs = _jobs(post);
+    return switch (_filter) {
+      'Active' => jobs.any((j) => j['status'] == 'RUNNING' || j['status'] == 'PENDING'),
+      'Finished' => _total(post) > 0 && _done(post) == _total(post),
+      'Errors' => jobs.any((j) => j['status'] == 'ERROR') || post['status'] == 'ERROR',
+      _ => true,
+    };
+  }
+
+  Widget _progress(Map post) => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+    LinearProgressIndicator(value: _fraction(post)),
+    Text('${_done(post)} / ${_total(post)} images • ${(_fraction(post) * 100).round()}%', style: const TextStyle(fontSize: 10)),
+  ]);
+
+  void _details(Map post) {
+    final images = _images(post);
+    showDialog<void>(context: context, builder: (context) => AlertDialog(
+      title: Text((post['title'] ?? 'Post images').toString()),
+      content: SizedBox(width: 640, height: 440, child: images.isEmpty
+        ? const Center(child: Text('No image records available'))
+        : ListView.builder(itemCount: images.length, itemBuilder: (_, index) {
+          final image = images[index];
+          final url = (image['main_url'] ?? image['url'] ?? '').toString();
+          return ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: Text((image['filename']?.toString().isNotEmpty == true ? image['filename'] : 'Image ${index + 1}').toString()),
+            subtitle: Text('${image['host'] ?? ''} • ${image['status'] ?? 'Discovered'}\\n$url', maxLines: 3, overflow: TextOverflow.ellipsis),
+            trailing: IconButton(tooltip: 'Copy image URL', onPressed: url.isEmpty ? null : () => widget.onCopyUrl(url), icon: const Icon(Icons.copy)),
+          );
+        })),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+    ));
+  }
+
+  Widget _postTile(Map<String, dynamic> post) {
+    final key = _key(post);
+    final subtitle = 'Thread: ${post['thread_title'] ?? post['thread_id']} • Post #${post['post_number'] ?? '-'} • ${_total(post)} images';
+    final selection = Checkbox(value: widget.selectedKeys.contains(key), onChanged: (value) => widget.onToggleSelection(key, value ?? false));
+    final title = Text((post['title'] ?? 'Untitled post').toString(), maxLines: 2, overflow: TextOverflow.ellipsis);
+    final actions = Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(tooltip: 'View images', onPressed: () => _details(post), icon: const Icon(Icons.image_outlined)),
+      IconButton(tooltip: 'Copy post URL', onPressed: () => widget.onCopyUrl((post['url'] ?? '').toString()), icon: const Icon(Icons.link)),
+    ]);
+    if (!_grid) return ListTile(dense: true, leading: selection, title: title,
+      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis), _progress(post)]),
+      trailing: actions, onTap: () => _details(post));
+    return Card(child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [selection, Expanded(child: title)]),
+      Expanded(child: Center(child: Icon(Icons.collections_outlined, size: 36, color: Theme.of(context).colorScheme.primary))),
+      Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis), _progress(post),
+      Align(alignment: Alignment.centerRight, child: actions),
+    ])));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final query = search.text.trim().toLowerCase();
-    final visible = posts.where((post) {
-      final title = (post['title'] ?? '').toString() + ' ' +
-          (post['thread_title'] ?? '').toString() + ' ' + (post['post_id'] ?? '').toString();
-      return query.isEmpty || title.toLowerCase().contains(query);
-    }).toList();
-    return Column(
-      children: [
-        Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _line))),
-          child: Row(
-            children: [
-              Text('All (' + posts.length.toString() + ')', style: const TextStyle(color: _accent, fontSize: 12)),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: selectedKeys.isEmpty ? null : onRemoveSelected,
-                icon: const Icon(Icons.delete_outline, size: 16),
-                label: Text('Remove selected (' + selectedKeys.length.toString() + ')'),
-              ),
-              TextButton(onPressed: posts.isEmpty ? null : onClear, child: const Text('Clear list')),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: onAddLinks,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Add links'),
-              ),
-            ],
-          ),
-        ),
-        if (summary.isNotEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(9),
-            color: const Color(0xFFEAF3FC),
-            child: Text(summary, style: const TextStyle(fontSize: 12)),
-          ),
-        if (visible.isEmpty)
-          const Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.download_for_offline_outlined, size: 42, color: Color(0xFF9AA8B2)),
-                  SizedBox(height: 10),
-                  Text('No posts yet', style: TextStyle(color: _muted, fontSize: 13)),
-                  SizedBox(height: 4),
-                  Text('Add a thread or post link to populate this list.', style: TextStyle(color: _muted, fontSize: 11)),
-                ],
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: ListView.separated(
-              itemCount: visible.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final post = visible[index];
-                final key = _key(post);
-                final hosts = (post['hosts'] as List? ?? const [])
-                    .whereType<Map>()
-                    .map((host) => host['host'].toString() + ' (' + host['count'].toString() + ')')
-                    .join(', ');
-                final subtitle = 'Thread: ' + (post['thread_title'] ?? post['thread_id']).toString() +
-                    '  •  Post #' + (post['post_number'] ?? '-').toString() +
-                    '  •  ' + (post['image_count'] ?? 0).toString() + ' images' +
-                    (hosts.isEmpty ? '' : '  •  ' + hosts);
-                return ListTile(
-                  dense: true,
-                  leading: Checkbox(
-                    value: selectedKeys.contains(key),
-                    onChanged: (value) => onToggleSelection(key, value ?? false),
-                  ),
-                  title: Text((post['title'] ?? 'Untitled post').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-                      Builder(builder: (_) {
-                        final ids = (post['queue_job_ids'] as List? ?? []).toSet();
-                        final jobs = (snapshot['items'] as List? ?? []).whereType<Map>().where((j) => ids.contains(j['id'])).toList();
-                        final total = jobs.length;
-                        final done = jobs.where((j) => j['status'] == 'FINISHED').length;
-                        final progress = jobs.fold<double>(0, (sum, job) {
-                          final status = job['status'];
-                          if (status == 'FINISHED') return sum + 1;
-                          if (status == 'RUNNING') {
-                            final bytes = job['bytes_written'];
-                            final expected = job['expected_bytes'];
-                            if (bytes is num && expected is num && expected > 0) return sum + (bytes / expected).clamp(0.0, 1.0);
-                          }
-                          return sum;
-                        });
-                        final fraction = total > 0 ? (progress / total).clamp(0.0, 1.0).toDouble() : 0.0;
-                        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          LinearProgressIndicator(value: fraction),
-                          Text('$done / $total images • ${(fraction * 100).round()}%', style: const TextStyle(fontSize: 10)),
-                        ]);
-                      }),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    tooltip: 'Copy post URL',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => onCopyUrl((post['url'] ?? '').toString()),
-                    icon: const Icon(Icons.link, size: 18),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
+    super.build(context);
+    return ValueListenableBuilder<TextEditingValue>(valueListenable: widget.search, builder: (context, value, _) {
+      final query = value.text.trim().toLowerCase();
+      final visible = widget.posts.where((post) {
+        final title = '${post['title']} ${post['thread_title']} ${post['post_id']} ${post['forum']}'.toLowerCase();
+        return _matches(post) && (query.isEmpty || title.contains(query));
+      }).toList();
+      return Column(children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          DropdownButton<String>(value: _filter, items: ['All', 'Active', 'Finished', 'Errors'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (s) { if (s != null) setState(() => _filter = s); }),
+          Text('${visible.length} / ${widget.posts.length}'),
+          IconButton(tooltip: _grid ? 'List view' : 'Grid view', onPressed: () => setState(() => _grid = !_grid), icon: Icon(_grid ? Icons.view_list : Icons.grid_view)),
+          TextButton(onPressed: widget.selectedKeys.isEmpty ? null : widget.onRemoveSelected, child: Text('Remove selected (${widget.selectedKeys.length})')),
+          TextButton(onPressed: widget.posts.isEmpty ? null : widget.onClear, child: const Text('Clear list')),
+          OutlinedButton.icon(onPressed: widget.onAddLinks, icon: const Icon(Icons.add, size: 16), label: const Text('Add links')),
+        ])),
+        if (widget.summary.isNotEmpty) Padding(padding: const EdgeInsets.all(8), child: Text(widget.summary)),
+        Expanded(child: visible.isEmpty
+          ? Center(child: Text(widget.posts.isEmpty ? 'No posts yet' : 'No matching posts'))
+          : _grid
+            ? GridView.builder(gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 320, mainAxisExtent: 220), itemCount: visible.length, itemBuilder: (_, i) => _postTile(visible[i]))
+            : ListView.builder(itemCount: visible.length, itemBuilder: (_, i) => _postTile(visible[i]))),
+      ]);
+    });
   }
 }
 
