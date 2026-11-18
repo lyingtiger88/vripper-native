@@ -172,4 +172,31 @@ void main() {
     expect(find.text('Task 2 • STOPPED'), findsOneWidget);
   });
 
+  testWidgets('posts switch grid, filter live search and inspect image records', (tester) async {
+    final search = TextEditingController();
+    addTearDown(search.dispose);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PostsTab(
+      search: search, summary: '', selectedKeys: const {},
+      posts: [
+        {'thread_id': 1, 'post_id': 2, 'title': 'Alpha', 'image_count': 1, 'legacy_id': 9, 'done': 1},
+        {'thread_id': 1, 'post_id': 3, 'title': 'Beta', 'image_count': 1},
+      ],
+      legacyImages: [{'post_legacy_id': 9, 'filename': 'alpha.jpg', 'status': 'FINISHED', 'url': 'https://example.invalid/a.jpg'}],
+      onAddLinks: () {}, onToggleSelection: (_, __) {}, onRemoveSelected: () {}, onClear: () {}, onCopyUrl: (_) {},
+    ))));
+    expect(find.text('1 / 1 images • 100%'), findsOneWidget);
+    await tester.tap(find.byTooltip('Grid view'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GridView), findsOneWidget);
+    search.text = 'Alpha';
+    await tester.pumpAndSettle();
+    expect(find.text('Beta'), findsNothing);
+    await tester.tap(find.byTooltip('View images'));
+    await tester.pumpAndSettle();
+    expect(find.text('alpha.jpg'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
 }
