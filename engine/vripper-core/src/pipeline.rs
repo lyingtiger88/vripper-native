@@ -157,7 +157,7 @@ impl HostPipeline {
         image_index_zero_based: usize,
         force_order: bool,
         destination_directory: &Path,
-        on_progress: &impl Fn(u64, Option<u64>) + Send + Sync,
+        on_progress: &(impl Fn(u64, Option<u64>) + Send + Sync),
     ) -> Result<CompletedImage, PipelineError> {
         let resolved = self.resolve_image(host, source_url, thumbnail_url).await?;
         let context = RequestContext {
