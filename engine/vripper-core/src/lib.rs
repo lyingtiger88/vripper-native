@@ -309,6 +309,7 @@ mod tests {
     fn sanitizer_replaces_every_reference_forbidden_character() {
         let input = "a.b/c\\d|e:f?g*h\"i<j>k\\n";
         assert_eq!(sanitize_reference_name(input), "a_b_c_d_e_f_g_h_i_j_k_n");
+        assert_eq!(sanitize_reference_name("control\u{0001}tail"), "control_tail");
     }
 
     #[test]
