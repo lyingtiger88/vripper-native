@@ -33,7 +33,7 @@ This checklist is for the first human acceptance pass after the Windows/Android 
 - [ ] Move pending tasks up/down and confirm queue order changes.
 - [ ] Stop all tasks and clear finished tasks.
 
-## 4. Download and output compatibility
+## 4. Download and output compatibility\n\n- [ ] Submit a link whose remote thread title contains `../`, `..\\`, an absolute path, a drive prefix, a Windows device name, or trailing dot/space; confirm the post is rejected with a clear per-post error and no task or directory is created.\n- [ ] Submit a post title that maps to a Windows reserved filename (for example `CON`) and confirm the output filename is made portable.\n- [ ] Confirm valid Unicode titles continue to produce readable folder names.
 
 - [ ] Download a small authorized image from each resolver under test.
 - [ ] Confirm the temporary file is finalized and no temporary file remains after success.
