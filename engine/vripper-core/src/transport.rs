@@ -181,12 +181,16 @@ impl HttpTransport {
         Ok(FormPostResponse { body, cookies })
     }
 
-    pub async fn download_to_temp(
+    pub async fn download_to_temp<F>(
         &self,
         url: &str,
         context: &RequestContext,
         temp_directory: &Path,
-    ) -> Result<DownloadedTempFile, TransportError> {
+        mut on_progress: F,
+    ) -> Result<DownloadedTempFile, TransportError>
+    where
+        F: FnMut(u64, Option<u64>),
+    {
         tokio::fs::create_dir_all(temp_directory)
             .await
             .map_err(|error| TransportError::File(error.to_string()))?;
@@ -201,6 +205,8 @@ impl HttpTransport {
         let mime = ImageMime::from_content_type(&mime_name)
             .ok_or_else(|| TransportError::UnsupportedMime(raw_mime.clone()))?;
         let expected_bytes = response.content_length();
+        on_progress(0, expected_bytes);
+        let mut last_reported_bytes = 0_u64;
 
         let temporary = tempfile::Builder::new()
             .prefix("vripper_")
@@ -221,6 +227,12 @@ impl HttpTransport {
                 .await
                 .map_err(|error| TransportError::File(error.to_string()))?;
             bytes_written += chunk.len() as u64;
+            if bytes_written.saturating_sub(last_reported_bytes) >= 64 * 1024
+                || expected_bytes.is_some_and(|expected| bytes_written >= expected)
+            {
+                on_progress(bytes_written, expected_bytes);
+                last_reported_bytes = bytes_written;
+            }
         }
         file.flush()
             .await

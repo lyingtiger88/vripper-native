@@ -105,6 +105,7 @@ pub enum QueueEventKind {
     Stopped,
     Reordered,
     Cleared,
+    Progress,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -192,6 +193,7 @@ enum Command {
     ClearFinished,
     Snapshot(oneshot::Sender<QueueSnapshot>),
     Shutdown(oneshot::Sender<()>),
+    Progress(u64, u64, Option<u64>),
 }
 
 #[derive(Clone)]
@@ -204,7 +206,7 @@ impl QueueManager {
     pub fn new(pipeline: HostPipeline, settings: QueueSettings) -> Self {
         let (commands, receiver) = mpsc::channel(128);
         let (events, _) = broadcast::channel(256);
-        tokio::spawn(run_queue(pipeline, settings, receiver, events.clone(), None, QueueJournal::default()));
+        tokio::spawn(run_queue(pipeline, settings, receiver, commands.clone(), events.clone(), None, QueueJournal::default()));
         Self { commands, events }
     }
 
@@ -214,7 +216,7 @@ impl QueueManager {
         store.save(&journal.jobs, &journal.items, &journal.legacy_image_ids)?;
         let (commands, receiver) = mpsc::channel(128);
         let (events, _) = broadcast::channel(256);
-        tokio::spawn(run_queue(pipeline, settings, receiver, events.clone(), Some(store), journal));
+        tokio::spawn(run_queue(pipeline, settings, receiver, commands.clone(), events.clone(), Some(store), journal));
         Ok(Self { commands, events })
     }
 
@@ -297,6 +299,7 @@ async fn run_queue(
     pipeline: HostPipeline,
     settings: QueueSettings,
     mut commands: mpsc::Receiver<Command>,
+    progress_sender: mpsc::Sender<Command>,
     events: broadcast::Sender<QueueEvent>,
     store: Option<QueueStore>,
     journal: QueueJournal,
@@ -311,6 +314,7 @@ async fn run_queue(
         pipeline: &pipeline,
         global_limit: settings.global_limit(),
         per_host_limit: settings.per_host_limit(),
+        progress_sender: &progress_sender,
     };
 
     loop {
@@ -480,6 +484,15 @@ async fn run_queue(
                         jobs.retain(|id, _| items.contains_key(id));
                         publish(&events, QueueEventKind::Cleared, None, &pending, &running, &items);
                     }
+                    Command::Progress(id, bytes_written, expected_bytes) => {
+                        if let Some(item) = items.get_mut(&id) {
+                            if item.status == QueueStatus::Running {
+                                item.bytes_written = bytes_written;
+                                item.expected_bytes = expected_bytes;
+                                publish(&events, QueueEventKind::Progress, Some(item.clone()), &pending, &running, &items);
+                            }
+                        }
+                    }
                     Command::Snapshot(reply) => {
                         let _ = reply.send(make_snapshot(&pending, &running, &items));
                     }
@@ -549,6 +562,7 @@ struct QueueScheduler<'a> {
     pipeline: &'a HostPipeline,
     global_limit: usize,
     per_host_limit: usize,
+    progress_sender: &'a mpsc::Sender<Command>,
 }
 
 impl QueueScheduler<'_> {
@@ -583,7 +597,9 @@ impl QueueScheduler<'_> {
             let host = job.host;
             let worker_pipeline = self.pipeline.clone();
             let worker_job = job.clone();
+            let progress_sender = self.progress_sender.clone();
             let abort = workers.spawn(async move {
+                let progress_id = worker_job.id;
                 let result = worker_pipeline
                     .download_image(
                         worker_job.host,
@@ -592,6 +608,9 @@ impl QueueScheduler<'_> {
                         worker_job.image_index_zero_based,
                         worker_job.force_order,
                         &worker_job.destination_directory,
+                        move |bytes, expected| {
+                            let _ = progress_sender.try_send(Command::Progress(progress_id, bytes, expected));
+                        },
                     )
                     .await;
                 (worker_job.id, result)
@@ -817,6 +836,7 @@ mod tests {
             false,
         );
         let queue = QueueManager::persistent(pipeline, QueueSettings::default(), &queue_path).unwrap();
+        let mut progress_events = queue.subscribe();
         let id = queue
             .add(QueueJob {
                 id: 0,
@@ -848,6 +868,11 @@ mod tests {
         let item = snapshot.items.iter().find(|item| item.id == id).unwrap();
         assert_eq!(item.status, QueueStatus::Finished);
         assert_eq!(item.filename.as_deref(), Some("queued.JPG"));
+        let saw_live_progress = std::iter::from_fn(|| progress_events.try_recv().ok()).any(|event| {
+            event.kind == QueueEventKind::Progress
+                && event.item.as_ref().is_some_and(|progress| progress.id == id && progress.bytes_written > 0)
+        });
+        assert!(saw_live_progress, "queue must publish live byte progress before completion");
         queue.shutdown().await.unwrap();
 
         let restored_pipeline = HostPipeline::from_transport(

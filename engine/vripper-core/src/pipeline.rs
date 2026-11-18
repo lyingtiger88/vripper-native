@@ -110,7 +110,7 @@ impl HostPipeline {
 
     /// Resolve the host's final image URL, stream the image to a VRipper-style
     /// temporary file, and move it to the exact requested destination filename.
-    pub async fn download_image(
+    pub async fn download_image<F>(
         &self,
         host: HostId,
         source_url: &str,
@@ -118,7 +118,11 @@ impl HostPipeline {
         image_index_zero_based: usize,
         force_order: bool,
         destination_directory: &Path,
-    ) -> Result<CompletedImage, PipelineError> {
+        on_progress: F,
+    ) -> Result<CompletedImage, PipelineError>
+    where
+        F: Fn(u64, Option<u64>) + Send + Sync,
+    {
         let mut last_error = None;
         for attempt in 1..=self.max_attempts {
             match self
@@ -129,6 +133,7 @@ impl HostPipeline {
                     image_index_zero_based,
                     force_order,
                     destination_directory,
+                    &on_progress,
                 )
                 .await
             {
@@ -152,6 +157,7 @@ impl HostPipeline {
         image_index_zero_based: usize,
         force_order: bool,
         destination_directory: &Path,
+        on_progress: &impl Fn(u64, Option<u64>) + Send + Sync,
     ) -> Result<CompletedImage, PipelineError> {
         let resolved = self.resolve_image(host, source_url, thumbnail_url).await?;
         let context = RequestContext {
@@ -168,7 +174,7 @@ impl HostPipeline {
         };
         let temporary = self
             .transport
-            .download_to_temp(&resolved.image_url, &context, &self.temp_directory)
+            .download_to_temp(&resolved.image_url, &context, &self.temp_directory, |bytes, expected| on_progress(bytes, expected))
             .await?;
 
         self.finalize(
@@ -377,6 +383,7 @@ mod tests {
                 0,
                 false,
                 &temp.path().join("downloads"),
+                |_, _| {},
             )
             .await
             .unwrap();
@@ -440,6 +447,7 @@ mod tests {
                 0,
                 false,
                 &temp.path().join("downloads"),
+                |_, _| {},
             )
             .await
             .unwrap();
