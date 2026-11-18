@@ -304,6 +304,59 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn sanitizer_replaces_every_reference_forbidden_character() {
+        let input = "a.b/c\\d|e:f?g*h\"i<j>k\\n";
+        assert_eq!(sanitize_reference_name(input), "a_b_c_d_e_f_g_h_i_j_k_n");
+    }
+
+    #[test]
+    fn folder_name_preserves_unicode_and_only_appends_post_id_when_enabled() {
+        assert_eq!(post_folder_name("عنوان فارسی — 東京", 987654, false), "عنوان فارسی — 東京");
+        assert_eq!(post_folder_name("عنوان فارسی — 東京", 987654, true), "عنوان فارسی — 東京_987654");
+    }
+
+    #[test]
+    fn filename_extension_is_derived_from_detected_mime_type() {
+        let cases = [
+            ("photo.bmp", ImageMime::Jpeg, "photo.JPG"),
+            ("photo.gif", ImageMime::Png, "photo.PNG"),
+            ("photo.jpeg", ImageMime::Webp, "photo.WEBP"),
+            ("photo.JPG", ImageMime::Gif, "photo.GIF"),
+            ("photo.webp", ImageMime::Bmp, "photo.BMP"),
+            ("photo", ImageMime::Svg, "photo.SVG"),
+        ];
+        for (supplied, mime, expected) in cases {
+            assert_eq!(final_image_filename(supplied, mime, 0, false), expected);
+        }
+    }
+
+    #[test]
+    fn force_order_uses_one_based_three_digit_prefix() {
+        assert_eq!(final_image_filename("a.jpg", ImageMime::Jpeg, 0, true), "001_a.JPG");
+        assert_eq!(final_image_filename("a.jpg", ImageMime::Jpeg, 8, true), "009_a.JPG");
+        assert_eq!(final_image_filename("a.jpg", ImageMime::Jpeg, 99, true), "100_a.JPG");
+        assert_eq!(final_image_filename("a.jpg", ImageMime::Jpeg, 999, true), "1000_a.JPG");
+    }
+
+    #[test]
+    fn directory_options_are_independent_and_keep_root_when_disabled() {
+        let root = Path::new("/downloads");
+        assert_eq!(
+            calculate_download_directory(root, "Forum: A", "Thread: B", false, false),
+            PathBuf::from("/downloads")
+        );
+        assert_eq!(
+            calculate_download_directory(root, "Forum: A", "Thread: B", true, false),
+            PathBuf::from("/downloads/Forum_ A")
+        );
+        assert_eq!(
+            calculate_download_directory(root, "Forum: A", "Thread: B", false, true),
+            PathBuf::from("/downloads/Thread: B")
+        );
+    }
+
     #[test]
     fn directory_sanitizes_forum_but_preserves_thread_title() {
         let path = calculate_download_directory(
