@@ -70,6 +70,9 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> _threads = [];
   Map<String, dynamic> _legacyCatalogExtras = {};
   String? _databasePath;
+  String? _downloadPath;
+  List<String> _logs = [];
+  final Map<int, String> _lastStatuses = {};
   String? _nativeCatalogPath;
   Future<void> _catalogWrites = Future.value();
   final Set<String> _selectedPostKeys = <String>{};
@@ -105,6 +108,8 @@ class _HomePageState extends State<HomePage> {
         if (decoded is Map) _networkSettings = Map<String, dynamic>.from(decoded);
       }
       _databasePath = preferences.getString('vripper.database.path');
+      _downloadPath = preferences.getString('vripper.download.path');
+      _logs = preferences.getStringList('vripper.logs') ?? [];
       final savedPosts = preferences.getString('vripper.posts');
       final savedThreads = preferences.getString('vripper.threads');
       if (savedPosts != null) {
@@ -122,7 +127,7 @@ class _HomePageState extends State<HomePage> {
       // persistence survive application restarts on the same SQLite file.
       _nativeCatalogPath = (_databasePath != null && _databasePath!.isNotEmpty)
           ? _databasePath
-          : '\${support.path}\${Platform.pathSeparator}native-catalog.db';
+          : '${support.path}${Platform.pathSeparator}native-catalog.db';
       final saved = await NativeEngine.instance.nativeCatalogInBackground(_nativeCatalogPath!);
       final catalog = saved['catalog'];
       if (catalog is Map) {
@@ -199,7 +204,7 @@ class _HomePageState extends State<HomePage> {
       if (!NativeEngine.instance.isLoaded) {
         throw StateError(NativeEngine.instance.loadError ?? 'Native engine is unavailable');
       }
-      final downloads = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final downloads = _downloadPath == null ? (await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory()) : Directory(_downloadPath!);
       final temporary = await getTemporaryDirectory();
       await Directory(downloads.path).create(recursive: true);
       await Directory(temporary.path).create(recursive: true);
@@ -252,6 +257,7 @@ class _HomePageState extends State<HomePage> {
         final snapshot = event['snapshot'];
         if (snapshot is Map && mounted && _coordinatorHandle == handle) {
           setState(() => _queueSnapshot = Map<String, dynamic>.from(snapshot));
+          await _recordQueueChanges();
         }
       } catch (error) {
         if (mounted && _coordinatorHandle == handle) {
@@ -260,6 +266,32 @@ class _HomePageState extends State<HomePage> {
         break;
       }
     }
+  }
+
+  Future<void> _recordQueueChanges() async {
+    if (!mounted) return;
+    final additions = <String>[];
+    for (final item in (_queueSnapshot['items'] as List? ?? []).whereType<Map>()) {
+      final id = item['id'];
+      final status = item['status'].toString();
+      if (id is int && _lastStatuses[id] != status) {
+        _lastStatuses[id] = status;
+        additions.add('${DateTime.now().toIso8601String()} | Task $id | $status');
+      }
+    }
+    if (additions.isEmpty) return;
+    setState(() {
+      _logs.addAll(additions);
+      if (_logs.length > 2000) _logs = _logs.sublist(_logs.length - 2000);
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('vripper.logs', List.of(_logs));
+  }
+
+  Future<void> _clearLogs() async {
+    setState(() => _logs = []);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('vripper.logs');
   }
 
   Future<void> _stopAllDownloads() async {
@@ -479,6 +511,7 @@ class _HomePageState extends State<HomePage> {
         initialProxyCredentials: _proxyCredentials,
         initialViperCredentials: _viperCredentials,
         initialDatabasePath: _databasePath,
+        initialDownloadPath: _downloadPath,
       ),
     );
     if (!mounted || result == null) return;
@@ -487,6 +520,8 @@ class _HomePageState extends State<HomePage> {
     final viperCredentials = result['viper_credentials'] as Map<String, dynamic>?;
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('vripper.network.settings', jsonEncode(network));
+    _downloadPath = result['download_path'] as String?;
+    if (_downloadPath != null) { await preferences.setString('vripper.download.path', _downloadPath!); } else { await preferences.remove('vripper.download.path'); }
     final databasePath = result['database_path'] as String?;
     if (databasePath != null && databasePath.isNotEmpty &&
         databasePath != _databasePath) {
@@ -611,7 +646,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   ThreadsTab(threads: _threads, onRemove: _removeThread, onClear: _clearThreads),
                   TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished, onStop: _stopJob, onMove: _moveJob, onRetry: _retryJob),
-                  const LogsTab(),
+                  LogsTab(logs: _logs, onClear: _clearLogs),
                 ],
               ),
             ),
@@ -1039,8 +1074,10 @@ class TasksTab extends StatelessWidget {
                     ),
                     SizedBox(
                       width: 120,
-                      child: Text(expected == null ? bytes.toString() : '$bytes / $expected',
-                          style: const TextStyle(fontSize: 10, color: _muted)),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        LinearProgressIndicator(value: status == 'FINISHED' ? 1.0 : (expected is num && expected > 0 && bytes is num ? (bytes / expected).clamp(0.0, 1.0).toDouble() : (status == 'DOWNLOADING' ? null : 0.0))),
+                        Text(expected == null ? bytes.toString() : '$bytes / $expected', style: const TextStyle(fontSize: 10, color: _muted)),
+                      ]),
                     ),
                     SizedBox(
                       width: 92,
@@ -1080,56 +1117,14 @@ class TasksTab extends StatelessWidget {
 }
 
 class LogsTab extends StatelessWidget {
-  const LogsTab({super.key});
+  const LogsTab({super.key, this.logs = const [], this.onClear});
+  final List<String> logs;
+  final VoidCallback? onClear;
   @override
-  Widget build(BuildContext context) => const _EmptyTable(
-        title: 'No logs yet',
-        columns: ['Time', 'Thread', 'Logger', 'Level', 'Message'],
-        action: 'Clear logs',
-      );
-}
-
-class _EmptyTable extends StatelessWidget {
-  const _EmptyTable({required this.title, required this.columns, required this.action});
-  final String title;
-  final List<String> columns;
-  final String action;
-
-  @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.centerRight,
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _line))),
-            child: TextButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.delete_outline, size: 16),
-              label: Text(action, style: const TextStyle(fontSize: 12)),
-            ),
-          ),
-          if (columns.isNotEmpty)
-            Container(
-              height: 30,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              alignment: Alignment.centerLeft,
-              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _line))),
-              child: Row(
-                children: columns
-                    .map((column) => Expanded(
-                          child: Text(column, style: const TextStyle(fontSize: 11, color: _muted)),
-                        ))
-                    .toList(),
-              ),
-            ),
-          Expanded(
-            child: Center(
-              child: Text(title, style: const TextStyle(color: _muted, fontSize: 13)),
-            ),
-          ),
-        ],
-      );
+  Widget build(BuildContext context) => Column(children: [
+    Align(alignment: Alignment.centerRight, child: TextButton(onPressed: onClear, child: const Text('Clear logs'))),
+    Expanded(child: logs.isEmpty ? const Center(child: Text('No logs yet')) : ListView.builder(itemCount: logs.length, itemBuilder: (_, i) => ListTile(dense: true, title: Text(logs[logs.length - 1 - i])))),
+  ]);
 }
 
 class _StatusStrip extends StatelessWidget {
@@ -1298,11 +1293,12 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath});
+  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath});
   final Map<String, dynamic> initialNetworkSettings;
   final Map<String, dynamic>? initialProxyCredentials;
   final Map<String, dynamic>? initialViperCredentials;
   final String? initialDatabasePath;
+  final String? initialDownloadPath;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -1313,7 +1309,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
     'Appearance', 'Downloads', 'Connection', 'Network', 'System',
     'Automation', 'Viper', 'Hosts', 'Posts', 'Viewers', 'Database',
   ];
-  int _selected = 0;
+  int _selected = 1;
+  final _downloadDirectory = TextEditingController();
   late String _proxyMode;
   late String _proxyProtocol;
   final _proxyHost = TextEditingController();
@@ -1349,10 +1346,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _viperPassword.text = widget.initialViperCredentials?['password']?.toString() ?? '';
     _bypass.text = (network['bypass_hosts'] as List? ?? const []).join('\n');
     _activeDatabasePath = widget.initialDatabasePath;
+    _downloadDirectory.text = widget.initialDownloadPath ?? '';
   }
 
   @override
   void dispose() {
+    _downloadDirectory.dispose();
     _proxyHost.dispose();
     _proxyPort.dispose();
     _proxyUser.dispose();
@@ -1406,7 +1405,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
+                                child: _selected == 1 ? _downloadsSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
                               ),
                             ),
                           ],
@@ -1483,6 +1482,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
     Navigator.pop(context, {
       'database_path': _activeDatabasePath,
+      'download_path': _downloadDirectory.text.trim().isEmpty ? null : _downloadDirectory.text.trim(),
       'network': {
         'mode': mode,
         'manual_proxy': manualProxy,
@@ -1494,6 +1494,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
           : null,
     });
   }
+
+  Widget _downloadsSettings() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    TextField(controller: _downloadDirectory, decoration: const InputDecoration(labelText: 'Download path', hintText: 'System Downloads (default)')),
+    const SizedBox(height: 12),
+    OutlinedButton.icon(onPressed: () async {
+      final path = await FilePicker.platform.getDirectoryPath();
+      if (mounted && path != null) setState(() => _downloadDirectory.text = path);
+    }, icon: const Icon(Icons.folder_open), label: const Text('Choose download folder')),
+    TextButton(onPressed: () => setState(() => _selected = 10), child: const Text('Import Java database')),
+  ]);
 
   Widget _networkSettings() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
