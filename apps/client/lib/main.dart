@@ -71,6 +71,8 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _legacyCatalogExtras = {};
   String? _databasePath;
   String? _downloadPath;
+  String? _temporaryPath;
+  int _maxLogEntries = 2000;
   Map<String, dynamic> _downloadOptions = {};
   String? _queueDatabasePath;
   List<String> _logs = [];
@@ -111,6 +113,8 @@ class _HomePageState extends State<HomePage> {
       }
       _databasePath = preferences.getString('vripper.database.path');
       _downloadPath = preferences.getString('vripper.download.path');
+      _temporaryPath = preferences.getString('vripper.temporary.path');
+      _maxLogEntries = preferences.getInt('vripper.max.log.entries') ?? 2000;
       _downloadOptions = Map<String, dynamic>.from(jsonDecode(preferences.getString('vripper.download.options') ?? '{}') as Map);
       _logs = preferences.getStringList('vripper.logs') ?? [];
       final savedPosts = preferences.getString('vripper.posts');
@@ -209,7 +213,7 @@ class _HomePageState extends State<HomePage> {
         throw StateError(NativeEngine.instance.loadError ?? 'Native engine is unavailable');
       }
       final downloads = _downloadPath == null ? (await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory()) : Directory(_downloadPath!);
-      final temporary = await getTemporaryDirectory();
+      final temporary = _temporaryPath == null ? await getTemporaryDirectory() : Directory(_temporaryPath!);
       await Directory(downloads.path).create(recursive: true);
       await Directory(temporary.path).create(recursive: true);
       final config = <String, dynamic>{
@@ -287,7 +291,7 @@ class _HomePageState extends State<HomePage> {
     if (additions.isEmpty) return;
     setState(() {
       _logs.addAll(additions);
-      if (_logs.length > 2000) _logs = _logs.sublist(_logs.length - 2000);
+      if (_logs.length > _maxLogEntries) _logs = _logs.sublist(_logs.length - _maxLogEntries);
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('vripper.logs', List.of(_logs));
@@ -518,6 +522,8 @@ class _HomePageState extends State<HomePage> {
         initialDatabasePath: _databasePath,
         initialDownloadPath: _downloadPath,
         initialDownloadOptions: _downloadOptions,
+        initialTemporaryPath: _temporaryPath,
+        initialMaxLogEntries: _maxLogEntries,
       ),
     );
     if (!mounted || result == null) return;
@@ -527,8 +533,12 @@ class _HomePageState extends State<HomePage> {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('vripper.network.settings', jsonEncode(network));
     _downloadPath = result['download_path'] as String?;
+    _temporaryPath = result['temporary_path'] as String?;
+    _maxLogEntries = result['max_log_entries'] as int? ?? 2000;
     _downloadOptions = Map<String, dynamic>.from(result['download_options'] as Map);
     await preferences.setString('vripper.download.options', jsonEncode(_downloadOptions));
+    if (_temporaryPath != null && _temporaryPath!.isNotEmpty) { await preferences.setString('vripper.temporary.path', _temporaryPath!); } else { await preferences.remove('vripper.temporary.path'); }
+    await preferences.setInt('vripper.max.log.entries', _maxLogEntries);
     if (_downloadPath != null) { await preferences.setString('vripper.download.path', _downloadPath!); } else { await preferences.remove('vripper.download.path'); }
     final databasePath = result['database_path'] as String?;
     if (databasePath != null && databasePath.isNotEmpty &&
@@ -937,9 +947,19 @@ class PostsTab extends StatelessWidget {
                       Builder(builder: (_) {
                         final ids = (post['queue_job_ids'] as List? ?? []).toSet();
                         final jobs = (snapshot['items'] as List? ?? []).whereType<Map>().where((j) => ids.contains(j['id'])).toList();
-                        final total = post['image_count'] as int? ?? 0;
+                        final total = jobs.length;
                         final done = jobs.where((j) => j['status'] == 'FINISHED').length;
-                        final fraction = total > 0 ? (done / total).clamp(0.0, 1.0).toDouble() : 0.0;
+                        final progress = jobs.fold<double>(0, (sum, job) {
+                          final status = job['status'];
+                          if (status == 'FINISHED') return sum + 1;
+                          if (status == 'RUNNING') {
+                            final bytes = job['bytes_written'];
+                            final expected = job['expected_bytes'];
+                            if (bytes is num && expected is num && expected > 0) return sum + (bytes / expected).clamp(0.0, 1.0);
+                          }
+                          return sum;
+                        });
+                        final fraction = total > 0 ? (progress / total).clamp(0.0, 1.0).toDouble() : 0.0;
                         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           LinearProgressIndicator(value: fraction),
                           Text('$done / $total images • ${(fraction * 100).round()}%', style: const TextStyle(fontSize: 10)),
@@ -1320,13 +1340,15 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath, this.initialDownloadOptions = const {}});
+  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath, this.initialDownloadOptions = const {}, this.initialTemporaryPath, this.initialMaxLogEntries = 2000});
   final Map<String, dynamic> initialNetworkSettings;
   final Map<String, dynamic>? initialProxyCredentials;
   final Map<String, dynamic>? initialViperCredentials;
   final String? initialDatabasePath;
   final String? initialDownloadPath;
   final Map<String, dynamic> initialDownloadOptions;
+  final String? initialTemporaryPath;
+  final int initialMaxLogEntries;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -1339,6 +1361,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   ];
   int _selected = 1;
   final _downloadDirectory = TextEditingController();
+  final _temporaryDirectory = TextEditingController();
+  int _maxLogEntries = 2000;
   late Map<String, dynamic> _options;
   late String _proxyMode;
   late String _proxyProtocol;
@@ -1376,12 +1400,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _bypass.text = (network['bypass_hosts'] as List? ?? const []).join('\n');
     _activeDatabasePath = widget.initialDatabasePath;
     _downloadDirectory.text = widget.initialDownloadPath ?? '';
+    _temporaryDirectory.text = widget.initialTemporaryPath ?? '';
+    _maxLogEntries = widget.initialMaxLogEntries;
     _options = Map.of(widget.initialDownloadOptions);
   }
 
   @override
   void dispose() {
     _downloadDirectory.dispose();
+    _temporaryDirectory.dispose();
     _proxyHost.dispose();
     _proxyPort.dispose();
     _proxyUser.dispose();
@@ -1435,7 +1462,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
+                                child: _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 4 ? _systemSettings() : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
                               ),
                             ),
                           ],
@@ -1514,6 +1541,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       'database_path': _activeDatabasePath,
       'download_path': _downloadDirectory.text.trim().isEmpty ? null : _downloadDirectory.text.trim(),
       'download_options': _options,
+      'temporary_path': _temporaryDirectory.text.trim().isEmpty ? null : _temporaryDirectory.text.trim(),
+      'max_log_entries': _maxLogEntries,
       'network': {
         'mode': mode,
         'manual_proxy': manualProxy,
@@ -1543,7 +1572,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
   Widget _optionToggle(String label, String key) => SwitchListTile(title: Text(label), value: _options[key] == true, onChanged: (value) => setState(() => _options[key] = value));
   Widget _numberOption(String label, String key, int fallback, List<int> values) => ListTile(
     title: Text(label),
-    trailing: DropdownButton<int>(value: values.contains(_options[key]) ? _options[key] as int : fallback, items: values.map((v) => DropdownMenuItem(value: v, child: Text(v.toString()))).toList(), onChanged: (v) { if (v != null) setState(() => _options[key] = v); }),
+    trailing: DropdownButton<int>(
+      value: values.contains(key == 'max_logs' ? _maxLogEntries : _options[key])
+          ? (key == 'max_logs' ? _maxLogEntries : _options[key] as int)
+          : fallback,
+      items: values.map((v) => DropdownMenuItem(value: v, child: Text(v.toString()))).toList(),
+      onChanged: (v) {
+        if (v != null) setState(() {
+          if (key == 'max_logs') { _maxLogEntries = v; } else { _options[key] = v; }
+        });
+      },
+    ),
   );
   Widget _connectionSettings() => Column(children: [
     _numberOption('Global concurrent downloads (0 = unlimited)', 'global', 0, [0, 1, 2, 4, 8, 16]),
@@ -1553,6 +1592,19 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _numberOption('Requests per second', 'request_limit', 2, [1, 2, 3, 4, 5]),
   ]);
   Widget _hostSettings() => _optionToggle('Fetch original IMX filename', 'fetch_original_imx_filename');
+
+  Widget _systemSettings() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    TextField(controller: _temporaryDirectory, decoration: const InputDecoration(labelText: 'Temporary files directory', hintText: 'System temporary directory')),
+    const SizedBox(height: 8),
+    OutlinedButton.icon(onPressed: () async {
+      final path = await FilePicker.platform.getDirectoryPath();
+      if (mounted && path != null) setState(() => _temporaryDirectory.text = path);
+    }, icon: const Icon(Icons.folder_open), label: const Text('Choose temporary folder')),
+    const SizedBox(height: 12),
+    _numberOption('Maximum retained log entries', 'max_logs', _maxLogEntries, [250, 500, 1000, 2000, 5000, 10000]),
+    const SizedBox(height: 8),
+    const Text('The temporary directory is used for incomplete downloads and staging files. Log entries are trimmed to the selected limit.', style: TextStyle(fontSize: 11, color: _muted)),
+  ]);
 
   Widget _networkSettings() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1782,23 +1834,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
       'Connection' => ['Concurrent downloads per host', 'Global concurrent downloads', 'Connection timeout', 'Maximum attempts'],
       'System' => ['Temporary path', 'Maximum log entries', 'Clipboard monitoring', 'Clipboard polling rate'],
       'Automation' => ['Enable post automation', 'Mode', 'Required custom fields', 'Compress post folder', 'Trigger action'],
-      'Viper' => ['Viper domain', 'Request limit', 'Fetch metadata', 'Authentication'],
+      'Viper' => ['Optional account configuration; authentication is not required for the current local development workflow.'],
       'Hosts' => ['Host-specific settings'],
       'Posts' => ['Default layout', 'Grid tile size', 'Preview popups'],
       'Viewers' => ['Overview layout', 'Tile size', 'Details panel', 'Image cache', 'Preload settings'],
       _ => <String>[],
     };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: items
-          .map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: TextFormField(
-                  enabled: false,
-                  decoration: InputDecoration(labelText: item, border: const OutlineInputBorder(), isDense: true),
-                ),
-              ))
-          .toList(),
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.construction_outlined, size: 32, color: _muted),
+      const SizedBox(height: 10),
+      Text('$section settings are not implemented yet.', style: const TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 6),
+      const Text('Inactive controls are intentionally not displayed. These options will be added only when their behavior is connected and tested.', style: TextStyle(fontSize: 12, color: _muted)),
+      if (items.isNotEmpty) ...[
+        const SizedBox(height: 14),
+        Text('Planned options: ${items.join(' • ')}', style: const TextStyle(fontSize: 11, color: _muted)),
+      ],
+    ]);
   }
 }
