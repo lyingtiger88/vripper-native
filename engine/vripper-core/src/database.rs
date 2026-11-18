@@ -336,13 +336,14 @@ pub fn persist_extracted_post(
     post: &crate::api::ParsedPost,
     output_path: &Path,
     folder_name: &str,
+    site_proxy: &str,
 ) -> Result<(), DatabaseError> {
     let mut connection = Connection::open(path)?;
     connection.busy_timeout(Duration::from_secs(5))?;
     connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
     let transaction = connection.transaction()?;
 
-    let thread_url = format!("{}/threads/{}", "https://vipergirls.to", thread.thread_id);
+    let thread_url = format!("{}/threads/{}", site_proxy.trim_end_matches('/'), thread.thread_id);
     transaction.execute(
         r#"INSERT INTO THREAD (THREAD_ID, TITLE, URL, TOTAL)
            VALUES (?1, ?2, ?3, ?4)
