@@ -306,7 +306,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _recordQueueChanges() async {
     if (!mounted) return;
     final additions = <String>[];
-    for (final item in (_queueSnapshot['items'] as List? ?? []).whereType<Map>()) {
+    final items = (_queueSnapshot['items'] as List? ?? []).whereType<Map>().toList();
+    final byId = {for (final item in items) item['id']: item};
+    for (final item in items) {
       final id = item['id'];
       final status = item['status'].toString();
       if (id is int && _lastStatuses[id] != status) {
@@ -314,13 +316,42 @@ class _HomePageState extends State<HomePage> {
         additions.add('${DateTime.now().toIso8601String()} | Task $id | $status');
       }
     }
-    if (additions.isEmpty) return;
-    setState(() {
+    bool changed = false;
+    for (final post in _posts) {
+      final ids = (post['queue_job_ids'] as List? ?? []);
+      if (ids.isEmpty) continue;
+      final linked = ids.map((id) => byId[id]).whereType<Map>().toList();
+      if (linked.isEmpty) continue;
+      final previous = (post['completed_job_ids'] as List? ?? []).toSet();
+      for (final job in linked) {
+        if (job['status'] == 'FINISHED') {
+          previous.add(job['id']);
+        } else {
+          previous.remove(job['id']);
+        }
+      }
+      final done = previous.length;
+      final total = (post['image_count'] as num?)?.toInt() ?? ids.length;
+      final status = linked.any((j) => j['status'] == 'RUNNING') ? 'RUNNING'
+        : linked.any((j) => j['status'] == 'PENDING') ? 'PENDING'
+        : total > 0 && done >= total ? 'FINISHED'
+        : linked.any((j) => j['status'] == 'ERROR') ? 'ERROR' : 'STOPPED';
+      if (post['done'] != done || post['status'] != status || (post['completed_job_ids'] as List? ?? []).length != done) {
+        post['done'] = done;
+        post['status'] = status;
+        post['completed_job_ids'] = previous.toList();
+        changed = true;
+      }
+    }
+    if (changed || additions.isNotEmpty) setState(() {
       _logs.addAll(additions);
       if (_logs.length > _maxLogEntries) _logs = _logs.sublist(_logs.length - _maxLogEntries);
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('vripper.logs', List.of(_logs));
+    if (changed) await _persistPostData();
+    if (additions.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('vripper.logs', List.of(_logs));
+    }
   }
 
   Future<void> _clearLogs() async {
@@ -392,6 +423,7 @@ class _HomePageState extends State<HomePage> {
     final handle = _coordinatorHandle;
     if (handle == null) return;
     try {
+      await _recordQueueChanges();
       NativeEngine.instance.clearFinished(handle);
       setState(() => _queueSnapshot = NativeEngine.instance.queueSnapshot(handle));
     } catch (error) {
@@ -434,7 +466,8 @@ class _HomePageState extends State<HomePage> {
         for (final item in _posts) _postKey(item): item,
       };
       for (final item in discoveredPosts) {
-        postMap[_postKey(item)] = item;
+        final old = postMap[_postKey(item)];
+        postMap[_postKey(item)] = {...?old, ...item};
       }
       final threadMap = <String, Map<String, dynamic>>{
         for (final item in _threads) item['thread_id'].toString(): item,
