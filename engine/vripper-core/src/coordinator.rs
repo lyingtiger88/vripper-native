@@ -62,6 +62,7 @@ pub struct PostRecord {
     pub forum: String,
     pub hosts: Vec<ParsedHostCount>,
     pub images: Vec<ParsedImage>,
+    pub queue_job_ids: Vec<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -280,6 +281,7 @@ impl DownloadCoordinator {
                     forum: post.forum.clone(),
                     hosts: post.hosts.clone(),
                     images: post.images.clone(),
+                    queue_job_ids: Vec::new(),
                 };
                 summary.posts.push(record);
                 if let Some(thread_record) = summary.threads.iter_mut().find(|item| item.thread_id == post.thread_id) {
@@ -343,6 +345,9 @@ impl DownloadCoordinator {
                         Ok(id) => {
                             summary.images_queued += 1;
                             summary.queue_job_ids.push(id);
+                            if let Some(record) = summary.posts.last_mut() {
+                                record.queue_job_ids.push(id);
+                            }
                         }
                         Err(error) => summary.errors.push(error.to_string()),
                     }
