@@ -728,19 +728,19 @@ mod tests {
         let path = temp.path().join("native.db");
         let db = Connection::open(&path).unwrap();
         db.execute_batch(
-            "CREATE TABLE THREAD (ID INTEGER PRIMARY KEY, THREAD_ID INTEGER UNIQUE, TITLE TEXT, URL TEXT, TOTAL INTEGER);
+            r#"CREATE TABLE THREAD (ID INTEGER PRIMARY KEY, THREAD_ID INTEGER UNIQUE, TITLE TEXT, URL TEXT, TOTAL INTEGER);
              CREATE TABLE POST (ID INTEGER PRIMARY KEY, POST_ID INTEGER UNIQUE, THREAD_ID INTEGER, POST_TITLE TEXT, THREAD_TITLE TEXT, FORUM TEXT, URL TEXT, TOTAL INTEGER, DONE INTEGER, STATUS TEXT, OUTPUT_PATH TEXT, FOLDER_NAME TEXT, SIZE INTEGER, DOWNLOADED INTEGER, TOKEN TEXT, RANK INTEGER);
              CREATE TABLE IMAGE (ID INTEGER PRIMARY KEY, POST_ID_REF INTEGER, HOST INTEGER, URL TEXT, THUMB_URL TEXT, "INDEX" INTEGER, STATUS TEXT, FILENAME TEXT, DOWNLOADED INTEGER, SIZE INTEGER);
              INSERT INTO POST (POST_ID, THREAD_ID, POST_TITLE, THREAD_TITLE, FORUM, URL, TOTAL, DONE, STATUS, OUTPUT_PATH, FOLDER_NAME, SIZE, DOWNLOADED, TOKEN, RANK)
-             VALUES (42, 7, 'old', 'old thread', 'old forum', 'old-url', 1, 1, 'FINISHED', '/old', 'old-folder', 123, 123, 'old-token', 1);",
+             VALUES (42, 7, 'old', 'old thread', 'old forum', 'old-url', 1, 1, 'FINISHED', '/old', 'old-folder', 123, 123, 'old-token', 1);"#,
         ).unwrap();
         db.execute(
             "INSERT INTO THREAD (THREAD_ID, TITLE, URL, TOTAL) VALUES (7, 'old thread', 'old-thread-url', 1)",
             [],
         ).unwrap();
         db.execute(
-            "INSERT INTO IMAGE (POST_ID_REF, HOST, URL, THUMB_URL, "INDEX", STATUS, FILENAME, DOWNLOADED, SIZE)
-             VALUES (1, 6, 'old-image', 'old-thumb', 0, 'FINISHED', '001_old.jpg', 123, 123)",
+            r#"INSERT INTO IMAGE (POST_ID_REF, HOST, URL, THUMB_URL, "INDEX", STATUS, FILENAME, DOWNLOADED, SIZE)
+             VALUES (1, 6, 'old-image', 'old-thumb', 0, 'FINISHED', '001_old.jpg', 123, 123)"#,
             [],
         ).unwrap();
         drop(db);
@@ -781,8 +781,8 @@ mod tests {
         assert_eq!(downloaded, 123);
         assert_eq!(title, "New title");
 
-        let image_url: String = db.query_row("SELECT URL FROM IMAGE WHERE POST_ID_REF=(SELECT ID FROM POST WHERE POST_ID=42) AND "INDEX"=0", [], |r| r.get(0)).unwrap();
-        let image_status: String = db.query_row("SELECT STATUS FROM IMAGE WHERE POST_ID_REF=(SELECT ID FROM POST WHERE POST_ID=42) AND "INDEX"=0", [], |r| r.get(0)).unwrap();
+        let image_url: String = db.query_row(r#"SELECT URL FROM IMAGE WHERE POST_ID_REF=(SELECT ID FROM POST WHERE POST_ID=42) AND "INDEX"=0"#, [], |r| r.get(0)).unwrap();
+        let image_status: String = db.query_row(r#"SELECT STATUS FROM IMAGE WHERE POST_ID_REF=(SELECT ID FROM POST WHERE POST_ID=42) AND "INDEX"=0"#, [], |r| r.get(0)).unwrap();
         assert_eq!(image_url, "https://imgbox.com/new");
         assert_eq!(image_status, "FINISHED");
     }
