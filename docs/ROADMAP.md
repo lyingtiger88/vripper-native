@@ -52,7 +52,7 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Implement a shared Tokio runtime, coordinator lifecycle and queue event polling.
 - [x] Implement bounded queue concurrency, stop/clear/reorder controls and retry baseline.
 - [x] Create the Flutter shell and native library loading path.
-- [x] Add CI checks for Rust formatting, unit tests and Clippy; current Rust checks pass.
+- [x] Add CI checks for Rust formatting, unit tests and Clippy; latest source changes are awaiting CI verification.
 - [ ] Replace JSON-shaped FFI errors with a fully typed, versioned event/error contract.
 - [x] Define SQLite schema compatibility and copy-first legacy import plan.
 - [x] Add bundled SQLite runtime and online-backup API foundation.
@@ -180,10 +180,10 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 | Output compatibility | Folder/filename primitives, cross-platform unsafe-path rejection and synthetic tests authored; Java golden comparison and filesystem acceptance pending |
 | Persistence | Verified Java-copy import is now the active writable catalog; extracted POST/IMAGE/THREAD metadata is persisted into the legacy-compatible SQLite tables while download state is preserved; full repositories/TASK/POST_ACTION and real legacy fixtures remain pending |
 | Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
-| Rust engine | Workspace, scanner, output helpers, initial host resolvers, XML parser, FFI and proxy-aware queue pipeline implemented; Rust CI checks pass; SQLite persistence pending |
-| Flutter UI | Posts/Threads extraction records and basic list management implemented; Flutter analysis and widget tests pass; full reference parity pending |
-| Platform builds | Rust native engine compilation passed for Windows x86-64 and Android ARM64 on an earlier head; complete app packaging for the latest head is pending |
-| CI and packaging | Rust and Flutter checks passed on the previous verified head; latest-head CI reruns and final Windows/Android packaging remain pending |
+| Rust engine | Workspace, scanner, output helpers, initial host resolvers, XML parser, FFI, proxy-aware queue pipeline and partial SQLite persistence implemented; latest security hardening tests pending CI verification |
+| Flutter UI | Posts/Threads extraction records and basic list management implemented; Flutter analysis/widget tests passed on previous head; latest branch CI verification pending; full reference parity pending |
+| Platform builds | Rust native engine compilation passed for Windows x86-64 and Android ARM64 on an earlier head; latest-head full app packaging and artifact inspection are pending |
+| CI and packaging | Rust and Flutter checks passed on an earlier verified head; latest-head Rust/Flutter checks and Windows/Android packaging remain pending |
 
 ## Current persistence milestone
 
