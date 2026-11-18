@@ -189,6 +189,71 @@ pub fn final_image_filename(
     }
 }
 
+/// Reject path components that could escape the configured download root or
+/// behave inconsistently across Windows, Linux and Android filesystems.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum UnsafeDownloadPath {
+    #[error("unsafe download path component")]
+    UnsafeComponent,
+}
+
+/// Validate one remote-controlled directory component without rewriting its
+/// visible name. This intentionally fails closed instead of silently changing
+/// a reference title that contains path syntax.
+pub fn validate_download_component(value: &str) -> Result<(), UnsafeDownloadPath> {
+    if value.is_empty()
+        || value == "."
+        || value == ".."
+        || value.ends_with('.')
+        || value.ends_with(' ')
+        || value.chars().any(|ch| ch == '/' || ch == '\\\\' || ch == ':' || ch.is_control())
+    {
+        return Err(UnsafeDownloadPath::UnsafeComponent);
+    }
+
+    let stem = value.split('.').next().unwrap_or(value).trim_end_matches([' ', '.']);
+    let upper = stem.to_ascii_uppercase();
+    if matches!(upper.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (upper.len() == 4
+            && (upper.starts_with("COM") || upper.starts_with("LPT"))
+            && upper.as_bytes()[3].is_ascii_digit()
+            && upper.as_bytes()[3] != b'0')
+    {
+        return Err(UnsafeDownloadPath::UnsafeComponent);
+    }
+
+    let mut components = Path::new(value).components();
+    if !matches!(components.next(), Some(std::path::Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err(UnsafeDownloadPath::UnsafeComponent);
+    }
+    Ok(())
+}
+
+/// Safe counterpart to calculate_download_directory. Forum names follow the
+/// reference sanitizer; remote thread titles must be a single portable path
+/// component or the operation is rejected.
+pub fn safe_calculate_download_directory(
+    root: &Path,
+    forum: &str,
+    thread_title: &str,
+    forum_subdirectory: bool,
+    thread_sublocation: bool,
+) -> Result<PathBuf, UnsafeDownloadPath> {
+    let mut output = root.to_path_buf();
+    if forum_subdirectory {
+        let forum_component = sanitize_reference_name(forum);
+        validate_download_component(&forum_component)?;
+        output.push(forum_component);
+    }
+    if thread_sublocation {
+        validate_download_component(thread_title)?;
+        output.push(thread_title);
+    }
+    Ok(output)
+}
+
 /// Mirrors PathUtils.calculateDownloadPath for the observed rules.
 /// Forum names are sanitized; thread titles are appended as-is in the source.
 pub fn calculate_download_directory(
@@ -381,6 +446,37 @@ mod tests {
             calculate_download_directory(root, "Forum: A", "Thread: B", false, true),
             PathBuf::from("/downloads/Thread: B")
         );
+    }
+
+    #[test]
+    fn safe_download_path_rejects_traversal_and_windows_special_components() {
+        for unsafe_name in ["..", "../escape", "..\\\\escape", "/absolute", "C:\\\\escape", "CON", "NUL.txt", "name.", "name "] {
+            assert_eq!(validate_download_component(unsafe_name), Err(UnsafeDownloadPath::UnsafeComponent), "{unsafe_name}");
+        }
+    }
+
+    #[test]
+    fn safe_download_path_accepts_unicode_and_keeps_root_contained() {
+        let path = safe_calculate_download_directory(
+            Path::new("/downloads"),
+            "Forum: A",
+            "عنوان فارسی — 東京",
+            true,
+            true,
+        ).unwrap();
+        assert_eq!(path, PathBuf::from("/downloads/Forum_ A/عنوان فارسی — 東京"));
+    }
+
+    #[test]
+    fn safe_download_path_rejects_unsafe_remote_thread_title() {
+        let result = safe_calculate_download_directory(
+            Path::new("/downloads"),
+            "Forum",
+            "../../outside",
+            true,
+            true,
+        );
+        assert_eq!(result, Err(UnsafeDownloadPath::UnsafeComponent));
     }
 
     #[test]
