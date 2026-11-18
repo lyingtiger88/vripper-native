@@ -180,7 +180,23 @@ pub fn final_image_filename(
     } else {
         supplied_name
     };
-    let normalized = format!("{}.{}", sanitize_reference_name(base), mime.extension());
+    let sanitized_base = sanitize_reference_name(base);
+    let reserved_stem = sanitized_base
+        .split('.')
+        .next()
+        .unwrap_or(&sanitized_base)
+        .to_ascii_uppercase();
+    let safe_base = if matches!(reserved_stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (reserved_stem.len() == 4
+            && (reserved_stem.starts_with("COM") || reserved_stem.starts_with("LPT"))
+            && reserved_stem.as_bytes()[3].is_ascii_digit()
+            && reserved_stem.as_bytes()[3] != b'0')
+    {
+        format!("_{sanitized_base}")
+    } else {
+        sanitized_base
+    };
+    let normalized = format!("{safe_base}.{}", mime.extension());
 
     if force_order {
         format!("{:03}_{normalized}", zero_based_index + 1)
@@ -421,6 +437,13 @@ mod tests {
         for (supplied, mime, expected) in cases {
             assert_eq!(final_image_filename(supplied, mime, 0, false), expected);
         }
+    }
+
+    #[test]
+    fn filename_avoids_windows_reserved_device_names() {
+        assert_eq!(final_image_filename("CON.jpg", ImageMime::Jpeg, 0, false), "_CON.JPG");
+        assert_eq!(final_image_filename("nul.png", ImageMime::Png, 0, false), "_nul.PNG");
+        assert_eq!(final_image_filename("COM1.webp", ImageMime::Webp, 0, false), "_COM1.WEBP");
     }
 
     #[test]
