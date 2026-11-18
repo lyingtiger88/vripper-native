@@ -721,4 +721,70 @@ mod tests {
         let error = import_legacy_database(&source, &temp.path().join("out.db")).unwrap_err();
         assert!(matches!(error, DatabaseError::Incompatible(_)));
     }
+
+    #[test]
+    fn extracted_post_persistence_registers_post_and_images_without_resetting_download_state() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("native.db");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(
+            "CREATE TABLE THREAD (ID INTEGER PRIMARY KEY, THREAD_ID INTEGER UNIQUE, TITLE TEXT, URL TEXT, TOTAL INTEGER);
+             CREATE TABLE POST (ID INTEGER PRIMARY KEY, POST_ID INTEGER UNIQUE, THREAD_ID INTEGER, POST_TITLE TEXT, THREAD_TITLE TEXT, FORUM TEXT, URL TEXT, TOTAL INTEGER, DONE INTEGER, STATUS TEXT, OUTPUT_PATH TEXT, FOLDER_NAME TEXT, SIZE INTEGER, DOWNLOADED INTEGER, TOKEN TEXT, RANK INTEGER);
+             CREATE TABLE IMAGE (ID INTEGER PRIMARY KEY, POST_ID_REF INTEGER, HOST INTEGER, URL TEXT, THUMB_URL TEXT, "INDEX" INTEGER, STATUS TEXT, FILENAME TEXT, DOWNLOADED INTEGER, SIZE INTEGER);
+             INSERT INTO POST (POST_ID, THREAD_ID, POST_TITLE, THREAD_TITLE, FORUM, URL, TOTAL, DONE, STATUS, OUTPUT_PATH, FOLDER_NAME, SIZE, DOWNLOADED, TOKEN, RANK)
+             VALUES (42, 7, 'old', 'old thread', 'old forum', 'old-url', 1, 1, 'FINISHED', '/old', 'old-folder', 123, 123, 'old-token', 1);",
+        ).unwrap();
+        db.execute(
+            "INSERT INTO THREAD (THREAD_ID, TITLE, URL, TOTAL) VALUES (7, 'old thread', 'old-thread-url', 1)",
+            [],
+        ).unwrap();
+        db.execute(
+            "INSERT INTO IMAGE (POST_ID_REF, HOST, URL, THUMB_URL, "INDEX", STATUS, FILENAME, DOWNLOADED, SIZE)
+             VALUES (1, 6, 'old-image', 'old-thumb', 0, 'FINISHED', '001_old.jpg', 123, 123)",
+            [],
+        ).unwrap();
+        drop(db);
+
+        let thread = crate::api::ParsedThread {
+            thread_id: 7,
+            title: "New thread".into(),
+            security_token: "new-token".into(),
+            forum: "New forum".into(),
+            posts: Vec::new(),
+            error: String::new(),
+        };
+        let post = crate::api::ParsedPost {
+            thread_id: 7,
+            thread_title: "New thread".into(),
+            post_id: 42,
+            post_number: 2,
+            title: "New title".into(),
+            image_count: 1,
+            url: "https://vipergirls.to/threads/7?p=42&viewfull=1#post42".into(),
+            hosts: Vec::new(),
+            security_token: "new-token".into(),
+            forum: "New forum".into(),
+            images: vec![crate::api::ParsedImage {
+                main_url: "https://imgbox.com/new".into(),
+                thumbnail_url: "https://imgbox.com/thumb".into(),
+                host: crate::hosts::HostId::Imgbox,
+            }],
+        };
+        let output = temp.path().join("downloads");
+        persist_extracted_post(&path, &thread, &post, &output, "new-folder", "https://vipergirls.to").unwrap();
+
+        let db = Connection::open(&path).unwrap();
+        let status: String = db.query_row("SELECT STATUS FROM POST WHERE POST_ID=42", [], |r| r.get(0)).unwrap();
+        let downloaded: i64 = db.query_row("SELECT DOWNLOADED FROM POST WHERE POST_ID=42", [], |r| r.get(0)).unwrap();
+        let title: String = db.query_row("SELECT POST_TITLE FROM POST WHERE POST_ID=42", [], |r| r.get(0)).unwrap();
+        assert_eq!(status, "FINISHED");
+        assert_eq!(downloaded, 123);
+        assert_eq!(title, "New title");
+
+        let image_url: String = db.query_row("SELECT URL FROM IMAGE WHERE POST_ID_REF=(SELECT ID FROM POST WHERE POST_ID=42) AND "INDEX"=0", [], |r| r.get(0)).unwrap();
+        let image_status: String = db.query_row("SELECT STATUS FROM IMAGE WHERE POST_ID_REF=(SELECT ID FROM POST WHERE POST_ID=42) AND "INDEX"=0", [], |r| r.get(0)).unwrap();
+        assert_eq!(image_url, "https://imgbox.com/new");
+        assert_eq!(image_status, "FINISHED");
+    }
+
 }
