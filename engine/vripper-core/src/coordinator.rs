@@ -9,7 +9,7 @@ use crate::scan_links;
 use crate::transport::{HttpTransport, TransportError};
 use crate::viper_api::{ViperApi, ViperApiError};
 use crate::viper_auth::{ViperAuthError, ViperAuthService, ViperCredentials};
-use crate::{post_folder_name, safe_calculate_download_directory};
+use crate::{post_folder_name, safe_calculate_download_directory, validate_download_component};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -307,6 +307,13 @@ impl DownloadCoordinator {
                     post.post_id.max(0) as u64,
                     self.options.append_post_id,
                 );
+                if let Err(error) = validate_download_component(&folder) {
+                    summary.errors.push(format!(
+                        "unsafe output folder for post {}: {error}",
+                        post.post_id
+                    ));
+                    continue;
+                }
                 let destination_directory = base_directory.join(folder.clone());
 
                 if let Some(database_path) = self.legacy_database_path() {
