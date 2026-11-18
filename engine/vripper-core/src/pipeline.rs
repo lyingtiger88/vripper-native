@@ -110,6 +110,7 @@ impl HostPipeline {
 
     /// Resolve the host's final image URL, stream the image to a VRipper-style
     /// temporary file, and move it to the exact requested destination filename.
+    #[allow(clippy::too_many_arguments)]
     pub async fn download_image<F>(
         &self,
         host: HostId,
@@ -149,6 +150,7 @@ impl HostPipeline {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn download_image_once(
         &self,
         host: HostId,
@@ -174,7 +176,7 @@ impl HostPipeline {
         };
         let temporary = self
             .transport
-            .download_to_temp(&resolved.image_url, &context, &self.temp_directory, |bytes, expected| on_progress(bytes, expected))
+            .download_to_temp(&resolved.image_url, &context, &self.temp_directory, on_progress)
             .await?;
 
         self.finalize(
