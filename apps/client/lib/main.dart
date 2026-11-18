@@ -117,7 +117,12 @@ class _HomePageState extends State<HomePage> {
       }
       final support = await getApplicationSupportDirectory();
       await support.create(recursive: true);
-      _nativeCatalogPath = '${support.path}${Platform.pathSeparator}native-catalog.db';
+      // Once a verified Java database has been imported, make that copy the
+      // primary native catalog so Posts/Threads management and queue
+      // persistence survive application restarts on the same SQLite file.
+      _nativeCatalogPath = (_databasePath != null && _databasePath!.isNotEmpty)
+          ? _databasePath
+          : '\${support.path}\${Platform.pathSeparator}native-catalog.db';
       final saved = await NativeEngine.instance.nativeCatalogInBackground(_nativeCatalogPath!);
       final catalog = saved['catalog'];
       if (catalog is Map) {
@@ -504,9 +509,12 @@ class _HomePageState extends State<HomePage> {
           _threads = threadMap.values.toList();
           _selectedPostKeys.clear();
         });
+        // Make the imported copy the active writable catalog before persisting
+        // the merged list. The original Java source remains untouched.
+        _databasePath = databasePath;
+        _nativeCatalogPath = databasePath;
         await _persistPostData();
         await preferences.setString('vripper.database.path', databasePath);
-        _databasePath = databasePath;
       } catch (error) {
         if (mounted) _showMessage('Could not open imported catalog: $error');
         return;
