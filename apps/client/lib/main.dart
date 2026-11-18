@@ -1107,7 +1107,7 @@ class ThreadsTab extends StatelessWidget {
   );
 }
 
-class TasksTab extends StatelessWidget {
+class TasksTab extends StatefulWidget {
   const TasksTab({super.key, required this.snapshot, required this.onClear, required this.onStop, required this.onMove, required this.onRetry});
   final Map<String, dynamic> snapshot;
   final VoidCallback onClear;
@@ -1116,137 +1116,87 @@ class TasksTab extends StatelessWidget {
   final void Function(int, String) onMove;
 
   @override
+  State<TasksTab> createState() => _TasksTabState();
+}
+
+class _TasksTabState extends State<TasksTab> with AutomaticKeepAliveClientMixin {
+  String _filter = 'All';
+  String _query = '';
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
-    final items = (snapshot['items'] as List? ?? const []).whereType<Map>().toList();
-    if (items.isEmpty) {
-      return Column(
-        children: [
-          Container(
-            height: 42,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: TextButton.icon(
-              onPressed: onClear,
-              icon: const Icon(Icons.delete_outline, size: 16),
-              label: const Text('Clear finished tasks'),
-            ),
-          ),
-          const Expanded(child: Center(child: Text('No tasks yet', style: TextStyle(color: _muted)))),
-        ],
-      );
-    }
-    return Column(
-      children: [
-        Container(
-          height: 42,
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: TextButton.icon(
-            onPressed: onClear,
-            icon: const Icon(Icons.delete_outline, size: 16),
-            label: const Text('Clear finished tasks'),
-          ),
-        ),
-        const Divider(height: 1),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              SizedBox(width: 55, child: Text('ID', style: TextStyle(fontSize: 11, color: _muted))),
-              SizedBox(width: 115, child: Text('Host', style: TextStyle(fontSize: 11, color: _muted))),
-              SizedBox(width: 100, child: Text('Status', style: TextStyle(fontSize: 11, color: _muted))),
-              Expanded(child: Text('Filename / Destination', style: TextStyle(fontSize: 11, color: _muted))),
-              SizedBox(width: 120, child: Text('Bytes', style: TextStyle(fontSize: 11, color: _muted))),
-              SizedBox(width: 92, child: Text('Actions', style: TextStyle(fontSize: 11, color: _muted))),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView.separated(
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final id = item['id'] ?? '';
-              final host = item['host'] ?? '';
-              final status = item['status'] ?? '';
-              final filename = item['filename'] ?? 'Resolving image…';
-              final destination = item['destination_path'] ?? '';
-              final bytes = item['bytes_written'] ?? 0;
-              final expected = item['expected_bytes'];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                child: Row(
-                  children: [
-                    SizedBox(width: 55, child: Text(id.toString(), style: const TextStyle(fontSize: 11))),
-                    SizedBox(width: 115, child: Text(host.toString(), style: const TextStyle(fontSize: 11))),
-                    SizedBox(width: 100, child: Text(status.toString(), style: const TextStyle(fontSize: 11))),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(filename.toString(), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                          if (destination.toString().isNotEmpty)
-                            Text(destination.toString(), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: _muted)),
-                          if (item['error'] != null)
-                            Text(item['error'].toString(), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 120,
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        LinearProgressIndicator(value: status == 'FINISHED' ? 1.0 : (expected is num && expected > 0 && bytes is num ? (bytes / expected).clamp(0.0, 1.0).toDouble() : (status == 'RUNNING' ? null : 0.0))),
-                        Text(expected == null ? bytes.toString() : '$bytes / $expected', style: const TextStyle(fontSize: 10, color: _muted)),
-                      ]),
-                    ),
-                    SizedBox(
-                      width: 92,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            tooltip: 'Move up',
-                            visualDensity: VisualDensity.compact,
-                            iconSize: 16,
-                            onPressed: status.toString() == 'PENDING' ? () => onMove(id as int, 'up') : null,
-                            icon: const Icon(Icons.arrow_upward),
-                          ),
-                          IconButton(
-                            tooltip: status == 'STOPPED' || status == 'ERROR' ? 'Retry task' : 'Stop task',
-                            visualDensity: VisualDensity.compact,
-                            iconSize: 16,
-                            onPressed: status == 'STOPPED' || status == 'ERROR'
-                                ? () => onRetry(id as int)
-                                : status == 'PENDING' || status == 'RUNNING'
-                                    ? () => onStop(id as int)
-                                    : null,
-                            icon: Icon(status == 'STOPPED' || status == 'ERROR' ? Icons.refresh : Icons.stop_circle_outlined),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
+    super.build(context);
+    final all = (widget.snapshot['items'] as List? ?? const []).whereType<Map>().toList();
+    final items = all.where((item) => (_filter == 'All' || item['status'] == _filter) &&
+      ['id', 'host', 'filename', 'destination_path', 'error'].any((key) => (item[key] ?? '').toString().toLowerCase().contains(_query))).toList();
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8), child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        DropdownButton<String>(value: _filter, items: ['All', 'PENDING', 'RUNNING', 'FINISHED', 'ERROR', 'STOPPED'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (s) { if (s != null) setState(() => _filter = s); }),
+        SizedBox(width: 180, child: TextField(decoration: const InputDecoration(isDense: true, hintText: 'Search tasks'), onChanged: (v) => setState(() => _query = v.trim().toLowerCase()))),
+        Text('${items.length} / ${all.length}'),
+        TextButton(onPressed: widget.onClear, child: const Text('Clear finished tasks')),
+      ])),
+      const Divider(height: 1),
+      Expanded(child: items.isEmpty ? Center(child: Text(all.isEmpty ? 'No tasks yet' : 'No matching tasks')) : ListView.separated(
+        itemCount: items.length, separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final id = item['id'];
+          final status = item['status'];
+          final bytes = item['bytes_written'] ?? 0;
+          final expected = item['expected_bytes'];
+          final fraction = status == 'FINISHED' ? 1.0 : (expected is num && expected > 0 && bytes is num ? (bytes / expected).clamp(0.0, 1.0).toDouble() : (status == 'RUNNING' ? null : 0.0));
+          return ListTile(
+            title: Text((item['filename'] ?? 'Resolving image…').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('#$id • ${item['host']} • $status'),
+              if (item['destination_path'] != null) Text(item['destination_path'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (item['error'] != null) Text(item['error'].toString(), style: const TextStyle(color: Colors.red), maxLines: 2, overflow: TextOverflow.ellipsis),
+              LinearProgressIndicator(value: fraction),
+              Text(expected == null ? '$bytes bytes' : '$bytes / $expected bytes'),
+            ]),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (id is int && status == 'PENDING') PopupMenuButton<String>(tooltip: 'Move task', onSelected: (v) => widget.onMove(id, v), itemBuilder: (_) => const [
+                PopupMenuItem(value: 'top', child: Text('Move to top')), PopupMenuItem(value: 'up', child: Text('Move up')),
+                PopupMenuItem(value: 'down', child: Text('Move down')), PopupMenuItem(value: 'bottom', child: Text('Move to bottom')),
+              ]),
+              if (id is int && (status == 'STOPPED' || status == 'ERROR')) IconButton(tooltip: 'Retry task', onPressed: () => widget.onRetry(id), icon: const Icon(Icons.refresh)),
+              if (id is int && (status == 'PENDING' || status == 'RUNNING')) IconButton(tooltip: 'Stop task', onPressed: () => widget.onStop(id), icon: const Icon(Icons.stop_circle_outlined)),
+            ]),
+          );
+        },
+      )),
+    ]);
   }
 }
 
-class LogsTab extends StatelessWidget {
+class LogsTab extends StatefulWidget {
   const LogsTab({super.key, this.logs = const [], this.onClear});
   final List<String> logs;
   final VoidCallback? onClear;
   @override
-  Widget build(BuildContext context) => Column(children: [
-    Align(alignment: Alignment.centerRight, child: TextButton(onPressed: onClear, child: const Text('Clear logs'))),
-    Expanded(child: logs.isEmpty ? const Center(child: Text('No logs yet')) : ListView.builder(itemCount: logs.length, itemBuilder: (_, i) => ListTile(dense: true, title: Text(logs[logs.length - 1 - i])))),
-  ]);
+  State<LogsTab> createState() => _LogsTabState();
+}
+
+class _LogsTabState extends State<LogsTab> {
+  String _query = '';
+  bool _errorsOnly = false;
+  @override
+  Widget build(BuildContext context) {
+    final visible = widget.logs.reversed.where((log) => log.toLowerCase().contains(_query) &&
+      (!_errorsOnly || RegExp(r'error|failed', caseSensitive: false).hasMatch(log))).toList();
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(8), child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        SizedBox(width: 180, child: TextField(decoration: const InputDecoration(isDense: true, hintText: 'Search logs'), onChanged: (v) => setState(() => _query = v.trim().toLowerCase()))),
+        FilterChip(label: const Text('Errors only'), selected: _errorsOnly, onSelected: (v) => setState(() => _errorsOnly = v)),
+        TextButton(onPressed: visible.isEmpty ? null : () => Clipboard.setData(ClipboardData(text: visible.join('\\n'))), child: const Text('Copy visible logs')),
+        TextButton(onPressed: widget.onClear, child: const Text('Clear logs')),
+      ])),
+      Expanded(child: visible.isEmpty ? Center(child: Text(widget.logs.isEmpty ? 'No logs yet' : 'No matching logs')) : ListView.builder(itemCount: visible.length, itemBuilder: (_, i) => ListTile(dense: true, title: SelectableText(visible[i])))),
+    ]);
+  }
 }
 
 class _StatusStrip extends StatelessWidget {
