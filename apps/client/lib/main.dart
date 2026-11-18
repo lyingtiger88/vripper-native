@@ -557,14 +557,39 @@ class _HomePageState extends State<HomePage> {
     final network = Map<String, dynamic>.from(result['network'] as Map);
     final proxyCredentials = result['proxy_credentials'] as Map<String, dynamic>?;
     final viperCredentials = result['viper_credentials'] as Map<String, dynamic>?;
+    final nextDownloadPath = result['download_path'] as String?;
+    final nextTemporaryPath = result['temporary_path'] as String?;
+    final nextDownloadOptions = Map<String, dynamic>.from(result['download_options'] as Map);
+    final nextDatabasePath = result['database_path'] as String?;
+    final requiresRestart =
+        jsonEncode(network) != jsonEncode(_networkSettings) ||
+        jsonEncode(proxyCredentials) != jsonEncode(_proxyCredentials) ||
+        nextDownloadPath != _downloadPath ||
+        nextTemporaryPath != _temporaryPath ||
+        jsonEncode(nextDownloadOptions) != jsonEncode(_downloadOptions) ||
+        nextDatabasePath != _databasePath;
+    if (requiresRestart && ((_queueSnapshot['running'] as int? ?? 0) > 0 || (_queueSnapshot['pending'] as int? ?? 0) > 0)) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Apply download settings?'),
+          content: const Text('Applying network, storage or queue settings requires restarting the native coordinator. Active and pending downloads will be preserved in history as stopped and can be retried. Continue?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep current settings')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Apply and restart')),
+          ],
+        ),
+      );
+      if (!mounted || proceed != true) return;
+    }
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('vripper.network.settings', jsonEncode(network));
-    _downloadPath = result['download_path'] as String?;
-    _temporaryPath = result['temporary_path'] as String?;
+    _downloadPath = nextDownloadPath;
+    _temporaryPath = nextTemporaryPath;
     _maxLogEntries = result['max_log_entries'] as int? ?? 2000;
     final themeMode = result['theme_mode'] as String? ?? 'light';
     _appThemeMode.value = switch (themeMode) { 'dark' => ThemeMode.dark, 'system' => ThemeMode.system, _ => ThemeMode.light };
-    _downloadOptions = Map<String, dynamic>.from(result['download_options'] as Map);
+    _downloadOptions = nextDownloadOptions;
     await preferences.setString('vripper.download.options', jsonEncode(_downloadOptions));
     if (_temporaryPath != null && _temporaryPath!.isNotEmpty) { await preferences.setString('vripper.temporary.path', _temporaryPath!); } else { await preferences.remove('vripper.temporary.path'); }
     await preferences.setInt('vripper.max.log.entries', _maxLogEntries);
@@ -605,16 +630,22 @@ class _HomePageState extends State<HomePage> {
     }
     await _storeCredentialPair('vripper.proxy', proxyCredentials);
     await _storeCredentialPair('vripper.viper', viperCredentials);
-    final oldHandle = _coordinatorHandle;
     setState(() {
       _networkSettings = network;
       _proxyCredentials = proxyCredentials;
       _viperCredentials = viperCredentials;
-      _coordinatorHandle = null;
-      _queueSnapshot = const {};
+      if (_logs.length > _maxLogEntries) _logs = _logs.sublist(_logs.length - _maxLogEntries);
     });
-    if (oldHandle != null) NativeEngine.instance.destroyCoordinator(oldHandle);
-    await _initializeCoordinator();
+    await preferences.setStringList('vripper.logs', List.of(_logs));
+    if (requiresRestart) {
+      final oldHandle = _coordinatorHandle;
+      setState(() {
+        _coordinatorHandle = null;
+        _queueSnapshot = const {};
+      });
+      if (oldHandle != null) NativeEngine.instance.destroyCoordinator(oldHandle);
+      await _initializeCoordinator();
+    }
   }
 
   Future<void> _changeSession() async {
