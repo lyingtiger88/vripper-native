@@ -211,7 +211,7 @@ impl DownloadCoordinator {
     /// Scan multiline input, perform thread/post lookups, deduplicate returned
     /// posts and enqueue each linked image using the reference output path rules.
     fn legacy_database_path(&self) -> Option<PathBuf> {
-        self.options.legacy_database_path.clone()
+        self.legacy_database_path.clone()
     }
 
     pub async fn scan_and_queue(
@@ -264,7 +264,7 @@ impl DownloadCoordinator {
                     post_count: 0,
                 });
             }
-            for post in thread.posts {
+            for post in thread.posts.iter().cloned() {
                 if !seen_posts.insert((post.thread_id, post.post_id)) {
                     continue;
                 }
