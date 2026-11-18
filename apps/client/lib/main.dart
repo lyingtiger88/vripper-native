@@ -332,7 +332,21 @@ class _HomePageState extends State<HomePage> {
       if (ids.isEmpty) continue;
       final linked = ids.map((id) => byId[id]).whereType<Map>().toList();
       if (linked.isEmpty) continue;
-      final previous = (post['completed_job_ids'] as List? ?? []).toSet();
+      final previous = (post['completed_job_ids'] as List? ?? []).where(ids.contains).toSet();
+      final imageStates = Map<String, dynamic>.from(post['image_job_states'] as Map? ?? {});
+      for (final job in linked) {
+        final id = job['id'].toString();
+        final stored = <String, dynamic>{
+          'status': job['status'],
+          'destination_path': job['destination_path'],
+          'filename': job['filename'],
+        };
+        if (jsonEncode(imageStates[id]) != jsonEncode(stored)) {
+          imageStates[id] = stored;
+          changed = true;
+        }
+      }
+      post['image_job_states'] = imageStates;
       for (final job in linked) {
         if (job['status'] == 'FINISHED') {
           previous.add(job['id']);
@@ -458,7 +472,7 @@ class _HomePageState extends State<HomePage> {
         text,
         const ['https://vipergirls.to', 'https://www.vipergirls.to'],
       );
-      if (!mounted) return;
+      if (!mounted || _coordinatorHandle != handle) return;
       final threads = result['thread_lookups'] ?? 0;
       final posts = result['posts_discovered'] ?? 0;
       final images = result['images_queued'] ?? 0;
@@ -1057,7 +1071,8 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
       final ids = explicitIds ?? (oldIds.length == images.length ? oldIds : const []);
       final id = index < ids.length ? ids[index] : null;
       final matches = jobs.where((j) => j['id'] == id);
-      final job = matches.isEmpty ? null : matches.first;
+      final savedStates = post['image_job_states'] as Map? ?? {};
+      final job = matches.isEmpty ? savedStates[id.toString()] as Map? : matches.first;
       String? localPath = job?['destination_path'] as String?;
       if (localPath == null && image['legacy'] == true && image['filename'] is String && post['output_path'] is String) {
         final filename = image['filename'] as String;
@@ -1073,6 +1088,7 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
         ...Map<String, dynamic>.from(image),
         'job_id': id,
         'local_path': localPath,
+        'filename': job?['filename'] ?? image['filename'],
         'status': job?['status'] ?? image['status'] ?? 'Discovered',
         'bytes_written': job?['bytes_written'] ?? image['downloaded'],
         'expected_bytes': job?['expected_bytes'] ?? image['size'],
