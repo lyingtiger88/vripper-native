@@ -71,6 +71,8 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _legacyCatalogExtras = {};
   String? _databasePath;
   String? _downloadPath;
+  Map<String, dynamic> _downloadOptions = {};
+  String? _queueDatabasePath;
   List<String> _logs = [];
   final Map<int, String> _lastStatuses = {};
   String? _nativeCatalogPath;
@@ -109,6 +111,7 @@ class _HomePageState extends State<HomePage> {
       }
       _databasePath = preferences.getString('vripper.database.path');
       _downloadPath = preferences.getString('vripper.download.path');
+      _downloadOptions = Map<String, dynamic>.from(jsonDecode(preferences.getString('vripper.download.options') ?? '{}') as Map);
       _logs = preferences.getStringList('vripper.logs') ?? [];
       final savedPosts = preferences.getString('vripper.posts');
       final savedThreads = preferences.getString('vripper.threads');
@@ -122,6 +125,7 @@ class _HomePageState extends State<HomePage> {
       }
       final support = await getApplicationSupportDirectory();
       await support.create(recursive: true);
+      _queueDatabasePath = '${support.path}${Platform.pathSeparator}queue-history.db';
       // Once a verified Java database has been imported, make that copy the
       // primary native catalog so Posts/Threads management and queue
       // persistence survive application restarts on the same SQLite file.
@@ -219,19 +223,19 @@ class _HomePageState extends State<HomePage> {
         'viper_host': 'https://vipergirls.to',
         'site_proxy': 'https://vipergirls.to',
         'viper_credentials': _viperCredentials,
-        'request_limit_per_second': 2,
-        'max_attempts': 3,
-        'connection_timeout_secs': 30,
-        'queue_settings': {'max_global_concurrent': 0, 'max_per_host_concurrent': 2},
+        'request_limit_per_second': _downloadOptions['request_limit'] ?? 2,
+        'max_attempts': _downloadOptions['max_attempts'] ?? 3,
+        'connection_timeout_secs': _downloadOptions['timeout'] ?? 30,
+        'queue_settings': {'max_global_concurrent': _downloadOptions['global'] ?? 0, 'max_per_host_concurrent': _downloadOptions['per_host'] ?? 2},
         'download_path': downloads.path,
         'temp_path': temporary.path,
-        'queue_database_path': _nativeCatalogPath,
+        'queue_database_path': _queueDatabasePath,
         'legacy_database_path': _databasePath,
-        'forum_subdirectory': false,
-        'thread_sublocation': false,
-        'append_post_id': false,
-        'force_order': false,
-        'fetch_original_imx_filename': false,
+        'forum_subdirectory': _downloadOptions['forum_subdirectory'] == true,
+        'thread_sublocation': _downloadOptions['thread_sublocation'] == true,
+        'append_post_id': _downloadOptions['append_post_id'] == true,
+        'force_order': _downloadOptions['force_order'] == true,
+        'fetch_original_imx_filename': _downloadOptions['fetch_original_imx_filename'] == true,
       };
       final handle = await NativeEngine.instance.createCoordinatorInBackground(config);
       if (!mounted) {
@@ -513,6 +517,7 @@ class _HomePageState extends State<HomePage> {
         initialViperCredentials: _viperCredentials,
         initialDatabasePath: _databasePath,
         initialDownloadPath: _downloadPath,
+        initialDownloadOptions: _downloadOptions,
       ),
     );
     if (!mounted || result == null) return;
@@ -522,6 +527,8 @@ class _HomePageState extends State<HomePage> {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('vripper.network.settings', jsonEncode(network));
     _downloadPath = result['download_path'] as String?;
+    _downloadOptions = Map<String, dynamic>.from(result['download_options'] as Map);
+    await preferences.setString('vripper.download.options', jsonEncode(_downloadOptions));
     if (_downloadPath != null) { await preferences.setString('vripper.download.path', _downloadPath!); } else { await preferences.remove('vripper.download.path'); }
     final databasePath = result['database_path'] as String?;
     if (databasePath != null && databasePath.isNotEmpty &&
@@ -1313,12 +1320,13 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath});
+  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath, this.initialDownloadOptions = const {}});
   final Map<String, dynamic> initialNetworkSettings;
   final Map<String, dynamic>? initialProxyCredentials;
   final Map<String, dynamic>? initialViperCredentials;
   final String? initialDatabasePath;
   final String? initialDownloadPath;
+  final Map<String, dynamic> initialDownloadOptions;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -1331,6 +1339,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   ];
   int _selected = 1;
   final _downloadDirectory = TextEditingController();
+  late Map<String, dynamic> _options;
   late String _proxyMode;
   late String _proxyProtocol;
   final _proxyHost = TextEditingController();
@@ -1367,6 +1376,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _bypass.text = (network['bypass_hosts'] as List? ?? const []).join('\n');
     _activeDatabasePath = widget.initialDatabasePath;
     _downloadDirectory.text = widget.initialDownloadPath ?? '';
+    _options = Map.of(widget.initialDownloadOptions);
   }
 
   @override
@@ -1425,7 +1435,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 1 ? _downloadsSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
+                                child: _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
                               ),
                             ),
                           ],
@@ -1503,6 +1513,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     Navigator.pop(context, {
       'database_path': _activeDatabasePath,
       'download_path': _downloadDirectory.text.trim().isEmpty ? null : _downloadDirectory.text.trim(),
+      'download_options': _options,
       'network': {
         'mode': mode,
         'manual_proxy': manualProxy,
@@ -1522,8 +1533,26 @@ class _SettingsDialogState extends State<SettingsDialog> {
       final path = await FilePicker.platform.getDirectoryPath();
       if (mounted && path != null) setState(() => _downloadDirectory.text = path);
     }, icon: const Icon(Icons.folder_open), label: const Text('Choose download folder')),
+    _optionToggle('Organize by forum', 'forum_subdirectory'),
+    _optionToggle('Organize by thread', 'thread_sublocation'),
+    _optionToggle('Append post ID to folder', 'append_post_id'),
+    _optionToggle('Order images', 'force_order'),
     TextButton(onPressed: () => setState(() => _selected = 10), child: const Text('Import Java database')),
   ]);
+
+  Widget _optionToggle(String label, String key) => SwitchListTile(title: Text(label), value: _options[key] == true, onChanged: (value) => setState(() => _options[key] = value));
+  Widget _numberOption(String label, String key, int fallback, List<int> values) => ListTile(
+    title: Text(label),
+    trailing: DropdownButton<int>(value: values.contains(_options[key]) ? _options[key] as int : fallback, items: values.map((v) => DropdownMenuItem(value: v, child: Text(v.toString()))).toList(), onChanged: (v) { if (v != null) setState(() => _options[key] = v); }),
+  );
+  Widget _connectionSettings() => Column(children: [
+    _numberOption('Global concurrent downloads (0 = unlimited)', 'global', 0, [0, 1, 2, 4, 8, 16]),
+    _numberOption('Concurrent downloads per host', 'per_host', 2, [1, 2, 3, 4, 5, 8]),
+    _numberOption('Connection timeout (seconds)', 'timeout', 30, [10, 30, 60, 120]),
+    _numberOption('Maximum attempts', 'max_attempts', 3, [1, 2, 3, 4, 5]),
+    _numberOption('Requests per second', 'request_limit', 2, [1, 2, 3, 4, 5]),
+  ]);
+  Widget _hostSettings() => _optionToggle('Fetch original IMX filename', 'fetch_original_imx_filename');
 
   Widget _networkSettings() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
