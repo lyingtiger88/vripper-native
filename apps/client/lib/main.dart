@@ -21,13 +21,25 @@ const _muted = Color(0xFF607D8B);
 const _line = Color(0xFFE1E6EA);
 const _surface = Color(0xFFF7F8FA);
 const _accent = Color(0xFF2878C8);
+final ValueNotifier<ThemeMode> _appThemeMode = ValueNotifier(ThemeMode.light);
 
 class VripperApp extends StatelessWidget {
   const VripperApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+        valueListenable: _appThemeMode,
+        builder: (context, mode, _) => MaterialApp(
         title: 'VRipper',
+        themeMode: mode,
+        darkTheme: ThemeData(
+          useMaterial3: false,
+          brightness: Brightness.dark,
+          colorScheme: ColorScheme.dark(primary: _accent, secondary: _accent, surface: const Color(0xFF20252B)),
+          scaffoldBackgroundColor: const Color(0xFF171B20),
+          dividerColor: const Color(0xFF343B43),
+          textTheme: const TextTheme(bodyMedium: TextStyle(fontSize: 13), bodySmall: TextStyle(fontSize: 12)),
+        ),
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: false,
@@ -48,6 +60,7 @@ class VripperApp extends StatelessWidget {
           ),
         ),
         home: const HomePage(),
+        ),
       );
 }
 
@@ -73,6 +86,7 @@ class _HomePageState extends State<HomePage> {
   String? _downloadPath;
   String? _temporaryPath;
   int _maxLogEntries = 2000;
+  late ThemeMode _themeMode;
   Map<String, dynamic> _downloadOptions = {};
   String? _queueDatabasePath;
   List<String> _logs = [];
@@ -115,6 +129,7 @@ class _HomePageState extends State<HomePage> {
       _downloadPath = preferences.getString('vripper.download.path');
       _temporaryPath = preferences.getString('vripper.temporary.path');
       _maxLogEntries = preferences.getInt('vripper.max.log.entries') ?? 2000;
+      _appThemeMode.value = switch (preferences.getString('vripper.theme.mode')) { 'dark' => ThemeMode.dark, 'system' => ThemeMode.system, _ => ThemeMode.light };
       _downloadOptions = Map<String, dynamic>.from(jsonDecode(preferences.getString('vripper.download.options') ?? '{}') as Map);
       _logs = preferences.getStringList('vripper.logs') ?? [];
       final savedPosts = preferences.getString('vripper.posts');
@@ -535,6 +550,7 @@ class _HomePageState extends State<HomePage> {
         initialDownloadOptions: _downloadOptions,
         initialTemporaryPath: _temporaryPath,
         initialMaxLogEntries: _maxLogEntries,
+        initialThemeMode: _appThemeMode.value,
       ),
     );
     if (!mounted || result == null) return;
@@ -546,10 +562,13 @@ class _HomePageState extends State<HomePage> {
     _downloadPath = result['download_path'] as String?;
     _temporaryPath = result['temporary_path'] as String?;
     _maxLogEntries = result['max_log_entries'] as int? ?? 2000;
+    final themeMode = result['theme_mode'] as String? ?? 'light';
+    _appThemeMode.value = switch (themeMode) { 'dark' => ThemeMode.dark, 'system' => ThemeMode.system, _ => ThemeMode.light };
     _downloadOptions = Map<String, dynamic>.from(result['download_options'] as Map);
     await preferences.setString('vripper.download.options', jsonEncode(_downloadOptions));
     if (_temporaryPath != null && _temporaryPath!.isNotEmpty) { await preferences.setString('vripper.temporary.path', _temporaryPath!); } else { await preferences.remove('vripper.temporary.path'); }
     await preferences.setInt('vripper.max.log.entries', _maxLogEntries);
+    await preferences.setString('vripper.theme.mode', themeMode);
     if (_downloadPath != null) { await preferences.setString('vripper.download.path', _downloadPath!); } else { await preferences.remove('vripper.download.path'); }
     final databasePath = result['database_path'] as String?;
     if (databasePath != null && databasePath.isNotEmpty &&
@@ -1351,7 +1370,7 @@ class _SessionDialogState extends State<SessionDialog> {
 }
 
 class SettingsDialog extends StatefulWidget {
-  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath, this.initialDownloadOptions = const {}, this.initialTemporaryPath, this.initialMaxLogEntries = 2000});
+  const SettingsDialog({super.key, required this.initialNetworkSettings, this.initialProxyCredentials, this.initialViperCredentials, this.initialDatabasePath, this.initialDownloadPath, this.initialDownloadOptions = const {}, this.initialTemporaryPath, this.initialMaxLogEntries = 2000, this.initialThemeMode = ThemeMode.light});
   final Map<String, dynamic> initialNetworkSettings;
   final Map<String, dynamic>? initialProxyCredentials;
   final Map<String, dynamic>? initialViperCredentials;
@@ -1360,6 +1379,7 @@ class SettingsDialog extends StatefulWidget {
   final Map<String, dynamic> initialDownloadOptions;
   final String? initialTemporaryPath;
   final int initialMaxLogEntries;
+  final ThemeMode initialThemeMode;
 
   @override
   State<SettingsDialog> createState() => _SettingsDialogState();
@@ -1413,6 +1433,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _downloadDirectory.text = widget.initialDownloadPath ?? '';
     _temporaryDirectory.text = widget.initialTemporaryPath ?? '';
     _maxLogEntries = widget.initialMaxLogEntries;
+    _themeMode = widget.initialThemeMode;
     _options = Map.of(widget.initialDownloadOptions);
   }
 
@@ -1473,7 +1494,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 4 ? _systemSettings() : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
+                                child: _selected == 0 ? _appearanceSettings() : _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 4 ? _systemSettings() : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
                               ),
                             ),
                           ],
@@ -1554,6 +1575,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
       'download_options': _options,
       'temporary_path': _temporaryDirectory.text.trim().isEmpty ? null : _temporaryDirectory.text.trim(),
       'max_log_entries': _maxLogEntries,
+      'theme_mode': switch (_themeMode) { ThemeMode.dark => 'dark', ThemeMode.system => 'system', _ => 'light' },
       'network': {
         'mode': mode,
         'manual_proxy': manualProxy,
@@ -1603,6 +1625,21 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _numberOption('Requests per second', 'request_limit', 2, [1, 2, 3, 4, 5]),
   ]);
   Widget _hostSettings() => _optionToggle('Fetch original IMX filename', 'fetch_original_imx_filename');
+
+  Widget _appearanceSettings() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    DropdownButtonFormField<ThemeMode>(
+      value: _themeMode,
+      decoration: const InputDecoration(labelText: 'Application theme', border: OutlineInputBorder()),
+      items: const [
+        DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+        DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+        DropdownMenuItem(value: ThemeMode.system, child: Text('Follow system')),
+      ],
+      onChanged: (value) { if (value != null) setState(() => _themeMode = value); },
+    ),
+    const SizedBox(height: 10),
+    const Text('Theme changes are applied immediately after saving settings.', style: TextStyle(fontSize: 11, color: _muted)),
+  ]);
 
   Widget _systemSettings() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     TextField(controller: _temporaryDirectory, decoration: const InputDecoration(labelText: 'Temporary files directory', hintText: 'System temporary directory')),
