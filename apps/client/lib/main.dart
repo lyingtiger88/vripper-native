@@ -725,6 +725,8 @@ class _HomePageState extends State<HomePage> {
                     onRemoveSelected: _removeSelectedPosts,
                     onClear: _clearPosts,
                     onCopyUrl: _copyPostUrl,
+                    onRetry: _retryJob,
+                    onStop: _stopJob,
                   ),
                   ThreadsTab(threads: _threads, onRemove: _removeThread, onClear: _clearThreads),
                   TasksTab(snapshot: _queueSnapshot, onClear: _clearFinished, onStop: _stopJob, onMove: _moveJob, onRetry: _retryJob),
@@ -906,7 +908,7 @@ class _ToolbarButton extends StatelessWidget {
 class PostsTab extends StatefulWidget {
   const PostsTab({
     required this.search, required this.summary, required this.posts,
-    this.snapshot = const {}, this.legacyImages = const [],
+    this.snapshot = const {}, this.legacyImages = const [], this.onRetry, this.onStop,
     required this.selectedKeys, required this.onAddLinks,
     required this.onToggleSelection, required this.onRemoveSelected,
     required this.onClear, required this.onCopyUrl,
@@ -915,6 +917,8 @@ class PostsTab extends StatefulWidget {
   final String summary;
   final Map<String, dynamic> snapshot;
   final List<dynamic> legacyImages;
+  final ValueChanged<int>? onRetry;
+  final ValueChanged<int>? onStop;
   final List<Map<String, dynamic>> posts;
   final Set<String> selectedKeys;
   final VoidCallback onAddLinks;
@@ -990,21 +994,36 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
 
   void _details(Map post) {
     final images = _images(post);
-    showDialog<void>(context: context, builder: (context) => AlertDialog(
-      title: Text((post['title'] ?? 'Post images').toString()),
-      content: SizedBox(width: 640, height: 440, child: images.isEmpty
-        ? const Center(child: Text('No image records available'))
-        : ListView.builder(itemCount: images.length, itemBuilder: (_, index) {
-          final image = images[index];
-          final url = (image['main_url'] ?? image['url'] ?? '').toString();
-          return ListTile(
-            leading: const Icon(Icons.image_outlined),
-            title: Text((image['filename']?.toString().isNotEmpty == true ? image['filename'] : 'Image ${index + 1}').toString()),
-            subtitle: Text('${image['host'] ?? ''} • ${image['status'] ?? 'Discovered'}\\n$url', maxLines: 3, overflow: TextOverflow.ellipsis),
-            trailing: IconButton(tooltip: 'Copy image URL', onPressed: url.isEmpty ? null : () => widget.onCopyUrl(url), icon: const Icon(Icons.copy)),
-          );
-        })),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+    final jobs = _jobs(post);
+    final records = <Map<String, dynamic>>[];
+    for (var index = 0; index < images.length; index++) {
+      final image = images[index];
+      final ids = post['queue_job_ids'] as List? ?? [];
+      final id = index < ids.length ? ids[index] : null;
+      final matches = jobs.where((j) => j['id'] == id);
+      final job = matches.isEmpty ? null : matches.first;
+      String? localPath = job?['destination_path'] as String?;
+      if (localPath == null && image['legacy'] == true && image['filename'] is String && post['output_path'] is String) {
+        final filename = image['filename'] as String;
+        if (filename.isNotEmpty && !filename.contains('/') && !filename.contains(Platform.pathSeparator) && !filename.contains(String.fromCharCode(92)) && filename != '.' && filename != '..') {
+          localPath = '${post['output_path']}${Platform.pathSeparator}$filename';
+        }
+      }
+      records.add({
+        ...Map<String, dynamic>.from(image),
+        'job_id': id,
+        'local_path': localPath,
+        'status': job?['status'] ?? image['status'] ?? 'Discovered',
+        'bytes_written': job?['bytes_written'] ?? image['downloaded'],
+        'expected_bytes': job?['expected_bytes'] ?? image['size'],
+      });
+    }
+    showDialog<void>(context: context, builder: (_) => ImageWorkspace(
+      title: (post['title'] ?? 'Post images').toString(),
+      images: records,
+      onCopyUrl: widget.onCopyUrl,
+      onRetry: widget.onRetry,
+      onStop: widget.onStop,
     ));
   }
 
@@ -1054,6 +1073,81 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
             : ListView.builder(itemCount: visible.length, itemBuilder: (_, i) => _postTile(visible[i]))),
       ]);
     });
+  }
+}
+
+// Preview only local downloaded files; opening an image never sends a network request.
+class ImageWorkspace extends StatefulWidget {
+  const ImageWorkspace({super.key, required this.title, required this.images, required this.onCopyUrl, this.onRetry, this.onStop});
+  final String title;
+  final List<Map<String, dynamic>> images;
+  final ValueChanged<String> onCopyUrl;
+  final ValueChanged<int>? onRetry;
+  final ValueChanged<int>? onStop;
+  @override
+  State<ImageWorkspace> createState() => _ImageWorkspaceState();
+}
+
+class _ImageWorkspaceState extends State<ImageWorkspace> {
+  int _index = 0;
+  bool _grid = false;
+  Widget _preview(Map image, {bool thumbnail = false}) {
+    final path = image['local_path'];
+    if (path is! String || path.isEmpty) return const Center(child: Icon(Icons.image_not_supported_outlined, size: 36));
+    return Image.file(File(path), fit: BoxFit.contain, cacheWidth: thumbnail ? 240 : null,
+      errorBuilder: (_, __, ___) => const Center(child: Text('Local image unavailable')));
+  }
+
+  void _fullScreen(Map image) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (context) => Scaffold(
+      appBar: AppBar(title: Text((image['filename'] ?? 'Image preview').toString())),
+      body: Center(child: InteractiveViewer(minScale: 0.5, maxScale: 5, child: _preview(image))),
+    )));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final images = widget.images;
+    final selected = images.isEmpty ? null : images[_index];
+    final status = selected?['status'];
+    final id = selected?['job_id'];
+    final url = (selected?['main_url'] ?? selected?['url'] ?? '').toString();
+    return Dialog(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 960, maxHeight: 720), child: Padding(
+      padding: const EdgeInsets.all(12), child: Column(children: [
+        Row(children: [
+          Expanded(child: Text(widget.title, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          IconButton(tooltip: _grid ? 'Image list' : 'Image grid', onPressed: () => setState(() => _grid = !_grid), icon: Icon(_grid ? Icons.view_list : Icons.grid_view)),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ]),
+        if (selected == null) const Expanded(child: Center(child: Text('No image records available'))) else ...[
+          Expanded(flex: 3, child: InkWell(onTap: () => _fullScreen(selected), child: _preview(selected))),
+          Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            IconButton(tooltip: 'Previous image', onPressed: _index > 0 ? () => setState(() => _index--) : null, icon: const Icon(Icons.chevron_left)),
+            Text('${_index + 1} / ${images.length} • $status'),
+            IconButton(tooltip: 'Next image', onPressed: _index + 1 < images.length ? () => setState(() => _index++) : null, icon: const Icon(Icons.chevron_right)),
+            IconButton(tooltip: 'Full screen image', onPressed: () => _fullScreen(selected), icon: const Icon(Icons.fullscreen)),
+            IconButton(tooltip: 'Copy image URL', onPressed: url.isEmpty ? null : () => widget.onCopyUrl(url), icon: const Icon(Icons.copy)),
+            if (id is int && (status == 'ERROR' || status == 'STOPPED') && widget.onRetry != null)
+              TextButton(onPressed: () => widget.onRetry!(id), child: const Text('Retry image')),
+            if (id is int && (status == 'RUNNING' || status == 'PENDING') && widget.onStop != null)
+              TextButton(onPressed: () => widget.onStop!(id), child: const Text('Stop image')),
+          ]),
+          const Divider(),
+          Expanded(flex: 2, child: _grid ? GridView.builder(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 110, mainAxisExtent: 100),
+            itemCount: images.length, itemBuilder: (_, i) => InkWell(onTap: () => setState(() => _index = i), child: Card(
+              color: i == _index ? Theme.of(context).colorScheme.primary.withAlpha(35) : null,
+              child: Column(children: [Expanded(child: _preview(images[i], thumbnail: true)), Text('${i+1}')]),
+            )),
+          ) : ListView.builder(itemCount: images.length, itemBuilder: (_, i) => ListTile(
+            dense: true, selected: i == _index, onTap: () => setState(() => _index = i),
+            leading: SizedBox(width: 48, height: 38, child: _preview(images[i], thumbnail: true)),
+            title: Text((images[i]['filename']?.toString().isNotEmpty == true ? images[i]['filename'] : 'Image ${i + 1}').toString()),
+            subtitle: Text((images[i]['status'] ?? '').toString()),
+          ))),
+        ],
+      ]),
+    )));
   }
 }
 
