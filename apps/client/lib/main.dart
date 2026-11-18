@@ -90,6 +90,7 @@ class _HomePageState extends State<HomePage> {
   String? _queueDatabasePath;
   List<String> _logs = [];
   final Map<int, String> _lastStatuses = {};
+  bool _startupAutomationApplied = false;
   String? _nativeCatalogPath;
   Future<void> _catalogWrites = Future.value();
   final Set<String> _selectedPostKeys = <String>{};
@@ -278,6 +279,15 @@ class _HomePageState extends State<HomePage> {
         _coordinatorError = null;
         _queueSnapshot = restoredSnapshot;
       });
+      await _recordQueueChanges();
+      if (!_startupAutomationApplied && _downloadOptions['retry_errors_on_launch'] == true) {
+        _startupAutomationApplied = true;
+        for (final item in (restoredSnapshot['items'] as List? ?? []).whereType<Map>()) {
+          if (item['status'] == 'ERROR' && item['id'] is int) {
+            NativeEngine.instance.retryJob(handle, item['id'] as int);
+          }
+        }
+      }
       _pollQueueEvents(handle);
     } catch (error) {
       if (mounted) setState(() => _coordinatorError = error.toString());
@@ -288,8 +298,8 @@ class _HomePageState extends State<HomePage> {
     while (mounted && _coordinatorHandle == handle) {
       try {
         final event = await NativeEngine.instance.pollEventInBackground(handle, 900);
-        if (event.containsKey('timeout')) continue;
-        final snapshot = event['snapshot'];
+        if (!mounted || _coordinatorHandle != handle) break;
+        final snapshot = event['snapshot'] ?? NativeEngine.instance.queueSnapshot(handle);
         if (snapshot is Map && mounted && _coordinatorHandle == handle) {
           setState(() => _queueSnapshot = Map<String, dynamic>.from(snapshot));
           await _recordQueueChanges();
@@ -485,6 +495,7 @@ class _HomePageState extends State<HomePage> {
         _queueSnapshot = NativeEngine.instance.queueSnapshot(handle);
       });
       await _persistPostData();
+      await _recordQueueChanges();
     } catch (error) {
       _showMessage('Link scan or extraction failed: $error');
     }
@@ -751,6 +762,8 @@ class _HomePageState extends State<HomePage> {
                     summary: _scanSummary,
                     posts: _posts,
                     legacyImages: _legacyCatalogExtras['images'] as List? ?? const [],
+                    defaultGrid: _downloadOptions['posts_grid'] == true,
+                    viewerGrid: _downloadOptions['viewer_grid'] == true,
                     snapshot: _queueSnapshot,
                     selectedKeys: _selectedPostKeys,
                     onAddLinks: _addLinks,
@@ -942,6 +955,7 @@ class PostsTab extends StatefulWidget {
   const PostsTab({
     required this.search, required this.summary, required this.posts,
     this.snapshot = const {}, this.legacyImages = const [], this.onRetry, this.onStop,
+    this.defaultGrid = false, this.viewerGrid = false,
     required this.selectedKeys, required this.onAddLinks,
     required this.onToggleSelection, required this.onRemoveSelected,
     required this.onClear, required this.onCopyUrl,
@@ -950,6 +964,8 @@ class PostsTab extends StatefulWidget {
   final String summary;
   final Map<String, dynamic> snapshot;
   final List<dynamic> legacyImages;
+  final bool defaultGrid;
+  final bool viewerGrid;
   final ValueChanged<int>? onRetry;
   final ValueChanged<int>? onStop;
   final List<Map<String, dynamic>> posts;
@@ -965,8 +981,13 @@ class PostsTab extends StatefulWidget {
 }
 
 class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin {
-  bool _grid = false;
+  late bool _grid = widget.defaultGrid;
   String _filter = 'All';
+  @override
+  void didUpdateWidget(covariant PostsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.defaultGrid != widget.defaultGrid) _grid = widget.defaultGrid;
+  }
   @override
   bool get wantKeepAlive => true;
 
@@ -1054,6 +1075,7 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
     showDialog<void>(context: context, builder: (_) => ImageWorkspace(
       title: (post['title'] ?? 'Post images').toString(),
       images: records,
+      defaultGrid: widget.viewerGrid,
       onCopyUrl: widget.onCopyUrl,
       onRetry: widget.onRetry,
       onStop: widget.onStop,
@@ -1111,8 +1133,9 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
 
 // Preview only local downloaded files; opening an image never sends a network request.
 class ImageWorkspace extends StatefulWidget {
-  const ImageWorkspace({super.key, required this.title, required this.images, required this.onCopyUrl, this.onRetry, this.onStop});
+  const ImageWorkspace({super.key, required this.title, required this.images, required this.onCopyUrl, this.onRetry, this.onStop, this.defaultGrid = false});
   final String title;
+  final bool defaultGrid;
   final List<Map<String, dynamic>> images;
   final ValueChanged<String> onCopyUrl;
   final ValueChanged<int>? onRetry;
@@ -1123,7 +1146,7 @@ class ImageWorkspace extends StatefulWidget {
 
 class _ImageWorkspaceState extends State<ImageWorkspace> {
   int _index = 0;
-  bool _grid = false;
+  late bool _grid = widget.defaultGrid;
   Widget _preview(Map image, {bool thumbnail = false}) {
     final path = image['local_path'];
     if (path is! String || path.isEmpty) return const Center(child: Icon(Icons.image_not_supported_outlined, size: 36));
@@ -1617,7 +1640,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                             const SizedBox(height: 14),
                             Expanded(
                               child: SingleChildScrollView(
-                                child: _selected == 0 ? _appearanceSettings() : _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 4 ? _systemSettings() : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
+                                child: _selected == 0 ? _appearanceSettings() : _selected == 1 ? _downloadsSettings() : _selected == 2 ? _connectionSettings() : _selected == 4 ? _systemSettings() : _selected == 5 ? _automationSettings() : _selected == 8 ? _optionToggle('Default to grid view', 'posts_grid') : _selected == 9 ? _optionToggle('Default to image grid', 'viewer_grid') : _selected == 7 ? _hostSettings() : _selected == 3 ? _networkSettings() : (_selected == 6 ? _viperSettings() : (_selected == 10 ? _databaseSettings() : _placeholderSettings(_sections[_selected]))),
                               ),
                             ),
                           ],
@@ -1741,12 +1764,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
     ),
   );
   Widget _connectionSettings() => Column(children: [
-    _numberOption('Global concurrent downloads (0 = unlimited)', 'global', 0, [0, 1, 2, 4, 8, 16]),
-    _numberOption('Concurrent downloads per host', 'per_host', 2, [1, 2, 3, 4, 5, 8]),
+    _numberOption('Global concurrent downloads (0 = default)', 'global', 0, [0, 1, 2, 4, 8, 16]),
+    _numberOption('Concurrent downloads per host', 'per_host', 2, [1, 2, 3, 4]),
     _numberOption('Connection timeout (seconds)', 'timeout', 30, [10, 30, 60, 120]),
     _numberOption('Maximum attempts', 'max_attempts', 3, [1, 2, 3, 4, 5]),
     _numberOption('Requests per second', 'request_limit', 2, [1, 2, 3, 4, 5]),
   ]);
+  Widget _automationSettings() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    _optionToggle('Retry failed downloads once on next launch', 'retry_errors_on_launch'),
+    const Text('Opt-in only. Failed downloads restart from the beginning and may replace existing files. Manually stopped jobs are never automatically retried.'),
+  ]);
+
   Widget _hostSettings() => _optionToggle('Fetch original IMX filename', 'fetch_original_imx_filename');
 
   Widget _appearanceSettings() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
