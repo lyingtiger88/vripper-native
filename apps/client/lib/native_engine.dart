@@ -99,8 +99,10 @@ class NativeEngine {
   DynamicLibrary _openLibrary() {
     if (Platform.isIOS) return DynamicLibrary.process();
     if (Platform.isWindows) return DynamicLibrary.open('vripper_core.dll');
-    if (Platform.isMacOS) return DynamicLibrary.open('libvripper_core.dylib');
-    if (Platform.isAndroid || Platform.isLinux) return DynamicLibrary.open('libvripper_core.so');
+    final executableDirectory = File(Platform.resolvedExecutable).parent.path;
+    if (Platform.isMacOS) return DynamicLibrary.open('$executableDirectory/../Frameworks/libvripper_core.dylib');
+    if (Platform.isLinux) return DynamicLibrary.open('$executableDirectory/lib/libvripper_core.so');
+    if (Platform.isAndroid) return DynamicLibrary.open('libvripper_core.so');
     throw UnsupportedError('This platform is not supported by the native engine');
   }
 

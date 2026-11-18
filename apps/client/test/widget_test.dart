@@ -230,4 +230,25 @@ void main() {
     expect(find.text('Task 2 ERROR'), findsOneWidget);
   });
 
+  testWidgets('image workspace switches images and exposes independent retry', (tester) async {
+    int? retried;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: ImageWorkspace(
+      title: 'Image fixture',
+      images: [
+        {'filename': 'one.jpg', 'status': 'ERROR', 'job_id': 41},
+        {'filename': 'two.jpg', 'status': 'FINISHED', 'job_id': 42},
+      ],
+      onCopyUrl: (_) {},
+      onRetry: (id) => retried = id,
+    ))));
+    await tester.tap(find.text('Retry image'));
+    expect(retried, 41);
+    await tester.tap(find.byTooltip('Next image'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 2 • FINISHED'), findsOneWidget);
+    await tester.tap(find.byTooltip('Image grid'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GridView), findsOneWidget);
+  });
+
 }

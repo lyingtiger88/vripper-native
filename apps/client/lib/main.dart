@@ -1052,7 +1052,9 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
     final records = <Map<String, dynamic>>[];
     for (var index = 0; index < images.length; index++) {
       final image = images[index];
-      final ids = post['queue_job_ids'] as List? ?? [];
+      final explicitIds = post['image_job_ids'] as List?;
+      final oldIds = post['queue_job_ids'] as List? ?? [];
+      final ids = explicitIds ?? (oldIds.length == images.length ? oldIds : const []);
       final id = index < ids.length ? ids[index] : null;
       final matches = jobs.where((j) => j['id'] == id);
       final job = matches.isEmpty ? null : matches.first;
@@ -1060,7 +1062,11 @@ class _PostsTabState extends State<PostsTab> with AutomaticKeepAliveClientMixin 
       if (localPath == null && image['legacy'] == true && image['filename'] is String && post['output_path'] is String) {
         final filename = image['filename'] as String;
         if (filename.isNotEmpty && !filename.contains('/') && !filename.contains(Platform.pathSeparator) && !filename.contains(String.fromCharCode(92)) && filename != '.' && filename != '..') {
-          localPath = '${post['output_path']}${Platform.pathSeparator}$filename';
+          final folder = (post['folder_name'] ?? '').toString();
+          if (!folder.contains('/') && !folder.contains(String.fromCharCode(92)) && folder != '..' && folder != '.') {
+            final base = folder.isEmpty ? post['output_path'] : '${post['output_path']}${Platform.pathSeparator}$folder';
+            localPath = '$base${Platform.pathSeparator}$filename';
+          }
         }
       }
       records.add({
