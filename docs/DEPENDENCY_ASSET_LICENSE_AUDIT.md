@@ -70,6 +70,6 @@ This tree observation does not prove that all runtime dependencies are asset-fre
 
 ## Phase 0 conclusion
 
-<badge>Initial inventory complete</badge>
+**Initial inventory complete.**
 
 The project-level GPL-3.0 provenance, direct manifest dependencies and visible asset tree have been inventoried. The full third-party license audit remains **open** until lockfiles, transitive package metadata, native plugin notices, attribution review and generated notices are available. Do not describe the distribution as license-cleared yet.
