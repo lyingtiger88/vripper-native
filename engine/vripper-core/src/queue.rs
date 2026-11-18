@@ -719,6 +719,43 @@ mod tests {
     }
 
     #[test]
+    fn queue_store_round_trips_job_payload_and_finished_state() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("queue-roundtrip.db");
+        let (store, journal) = QueueStore::open(&path).unwrap();
+        let job = QueueJob {
+            id: 42,
+            host: HostId::DPicMe,
+            source_url: "https://example.invalid/image.jpg".into(),
+            thumbnail_url: "https://example.invalid/thumb.jpg".into(),
+            image_index_zero_based: 3,
+            force_order: true,
+            destination_directory: temp.path().join("downloads"),
+        };
+        let jobs = HashMap::from([(42, job)]);
+        let items = HashMap::from([(42, QueueItemSnapshot {
+            id: 42,
+            host: HostId::DPicMe,
+            status: QueueStatus::Finished,
+            queue_rank: None,
+            filename: Some("image.jpg".into()),
+            destination_path: Some(temp.path().join("downloads/image.jpg").to_string_lossy().into_owned()),
+            bytes_written: 4096,
+            expected_bytes: Some(4096),
+            error: None,
+        })]);
+        store.save(&jobs, &items, &journal.legacy_image_ids).unwrap();
+        drop(store);
+
+        let (_, restored) = QueueStore::open(&path).unwrap();
+        assert_eq!(restored.jobs[&42].source_url, "https://example.invalid/image.jpg");
+        assert_eq!(restored.jobs[&42].image_index_zero_based, 3);
+        assert_eq!(restored.items[&42].status, QueueStatus::Finished);
+        assert_eq!(restored.items[&42].bytes_written, 4096);
+        assert_eq!(restored.items[&42].filename.as_deref(), Some("image.jpg"));
+    }
+
+    #[test]
     fn zero_global_limit_uses_reference_pool_fallback() {
         assert_eq!(QueueSettings::default().global_limit(), 24);
         assert_eq!(QueueSettings { max_global_concurrent: 7, max_per_host_concurrent: 2 }.global_limit(), 7);
