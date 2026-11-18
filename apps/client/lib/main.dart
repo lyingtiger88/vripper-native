@@ -564,6 +564,7 @@ class _HomePageState extends State<HomePage> {
     final requiresRestart =
         jsonEncode(network) != jsonEncode(_networkSettings) ||
         jsonEncode(proxyCredentials) != jsonEncode(_proxyCredentials) ||
+        jsonEncode(viperCredentials) != jsonEncode(_viperCredentials) ||
         nextDownloadPath != _downloadPath ||
         nextTemporaryPath != _temporaryPath ||
         jsonEncode(nextDownloadOptions) != jsonEncode(_downloadOptions) ||
