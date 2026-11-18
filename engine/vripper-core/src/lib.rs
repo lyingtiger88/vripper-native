@@ -479,6 +479,18 @@ mod tests {
     }
 
     #[test]
+    fn safe_download_component_rejects_reserved_post_folder_names() {
+        for name in ["CON", "PRN", "AUX", "NUL", "COM1", "LPT9", "trailing.", "trailing "] {
+            assert_eq!(
+                validate_download_component(name),
+                Err(UnsafeDownloadPath::UnsafeComponent),
+                "{name}"
+            );
+        }
+        assert!(validate_download_component("normal folder — فارسی").is_ok());
+    }
+
+    #[test]
     fn safe_download_path_accepts_unicode_and_keeps_root_contained() {
         let path = safe_calculate_download_directory(
             Path::new("/downloads"),
