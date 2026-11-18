@@ -16,7 +16,9 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [ ] Complete and test compatibility for every critical workflow.
 
 ## Phase 0 — Reference audit and behavioral specification
-\n**Compatibility evidence register:** [Phase 0 compatibility matrix](PHASE0_COMPATIBILITY_MATRIX.md). It separates source inspection and synthetic tests from reference-application comparison and real acceptance evidence.\n
+
+**Compatibility evidence register:** [Phase 0 compatibility matrix](PHASE0_COMPATIBILITY_MATRIX.md). It separates source inspection and synthetic tests from reference-application comparison and real acceptance evidence.
+
 - [x] Confirm source repository and inspect its Git tree.
 - [x] Confirm target repository and write permissions.
 - [x] Initialize target README and roadmap.
@@ -31,9 +33,12 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Record Posts table columns, List/Grid selection behavior, Threads/Tasks/Logs interactions, quick filters, grouping and action bar/menu shortcuts.
 - [ ] Capture reference screenshots and interaction recordings for pixel/gesture parity.
 - [x] Inspect source for every one of the 16 registered host resolvers and record selectors, request mutations and URL transformations.
-- [x] Add synthetic HTML fixtures and resolver unit coverage for all 16 host types.\n- [ ] Capture authorized reference HTML and compare resolver behavior for each host.
+- [x] Add synthetic HTML fixtures and resolver unit coverage for all 16 host types.
+- [ ] Capture authorized reference HTML and compare resolver behavior for each host.
 - [x] Trace exact folderName generation, including optional post ID suffix.
-- [x] Expand deterministic native output-path and filename unit vectors (synthetic; Java comparison remains pending).\n- [x] Reject unsafe remote thread-title path components before native database registration and download queue insertion; Java parity intentionally yields to path safety.\n- [ ] Validate local symlink/race containment and Windows reserved-name behavior on real target filesystems.
+- [x] Expand deterministic native output-path and filename unit vectors (synthetic; Java comparison remains pending).
+- [x] Reject unsafe remote thread-title path components before native database registration and download queue insertion; Java parity intentionally yields to path safety.
+- [ ] Validate local symlink/race containment and Windows reserved-name behavior on real target filesystems.
 - [ ] Capture reference screenshots and interaction recordings.
 - [x] Map logical POST, IMAGE, THREAD, METADATA, TASK and POST_ACTION entities and observed indexes from Liquibase.
 - [ ] Verify schema/entity drift and migration behavior against a real legacy database.
