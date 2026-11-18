@@ -260,6 +260,31 @@ mod tests {
         );
     }
 
+
+    #[test]
+    fn scanner_finds_post_id_after_other_query_parameters_and_fragment() {
+        let result = scan_links(
+            "https://vipergirls.to/threads/12345?view=unread&p=67890#post67890",
+            &bases(),
+        );
+        assert_eq!(result.posts.len(), 1);
+        assert_eq!(result.posts[0].thread_id, 12345);
+        assert_eq!(result.posts[0].post_id, 67890);
+        assert!(result.threads.is_empty());
+        assert!(result.invalid.is_empty());
+    }
+
+    #[test]
+    fn scanner_rejects_overflowing_thread_and_post_identifiers() {
+        let result = scan_links(
+            "https://vipergirls.to/threads/999999999999999999999999\nhttps://vipergirls.to/threads/7?p=999999999999999999999999",
+            &bases(),
+        );
+        assert_eq!(result.invalid.len(), 2);
+        assert!(result.threads.is_empty());
+        assert!(result.posts.is_empty());
+    }
+
     #[test]
     fn scanner_uses_first_matching_configured_base() {
         let bases = vec![
