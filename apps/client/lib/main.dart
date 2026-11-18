@@ -86,7 +86,6 @@ class _HomePageState extends State<HomePage> {
   String? _downloadPath;
   String? _temporaryPath;
   int _maxLogEntries = 2000;
-  late ThemeMode _themeMode;
   Map<String, dynamic> _downloadOptions = {};
   String? _queueDatabasePath;
   List<String> _logs = [];
@@ -1394,6 +1393,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   final _downloadDirectory = TextEditingController();
   final _temporaryDirectory = TextEditingController();
   int _maxLogEntries = 2000;
+  late ThemeMode _themeMode;
   late Map<String, dynamic> _options;
   late String _proxyMode;
   late String _proxyProtocol;
