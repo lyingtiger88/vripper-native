@@ -61,7 +61,7 @@ The native engine exposes deterministic implementations for the observed referen
 
 New native unit vectors added in this phase cover forbidden characters, Unicode names, optional post ID, MIME-driven extension changes, index boundaries (001, 009, 100, 1000) and independent directory options.
 
-**Still not proven:** Exact parity with the Java build for path separators on each OS, duplicate filename collisions, trailing dots/spaces, reserved Windows names, unusual Unicode normalization, existing-file overwrite policy, temporary-file cleanup after process termination, and all source extension/MIME combinations. These require reference golden vectors and platform acceptance tests.
+**Still not proven:** Exact parity with the Java build for path separators on each OS, duplicate filename collisions, trailing dots/spaces, reserved Windows names, unusual Unicode normalization, existing-file overwrite policy, temporary-file cleanup after process termination, and all source extension/MIME combinations. These require reference golden vectors and platform acceptance tests.\n\n**Security observation:** the currently documented reference behavior appends the thread title without sanitization. Before release, the implementation must prove that the resolved destination remains inside the configured download root (including `..`, absolute paths, drive prefixes, UNC paths and symlink cases). Compatibility must not permit path traversal; any intentional hardening must be recorded as a deliberate safety deviation from the reference.
 
 ## UI and interaction inventory
 
