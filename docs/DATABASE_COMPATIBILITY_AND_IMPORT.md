@@ -80,7 +80,7 @@ Not yet complete:
 - Real-world fixtures from multiple Java releases and schema migration/rollback tests are pending.
 - Android/iOS document-provider edge cases and desktop file-permission tests are pending.
 
-Therefore, the current importer is a safe inspection/copy foundation, not yet a claim of full database runtime compatibility.
+Therefore, the importer plus partial coordinator persistence is an intermediate integration milestone, not yet full database runtime compatibility.
 
 ## Acceptance tests
 
