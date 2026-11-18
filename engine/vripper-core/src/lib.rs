@@ -222,7 +222,7 @@ pub fn validate_download_component(value: &str) -> Result<(), UnsafeDownloadPath
         || value == ".."
         || value.ends_with('.')
         || value.ends_with(' ')
-        || value.chars().any(|ch| ch == '/' || ch == '\\\\' || ch == ':' || ch.is_control())
+        || value.chars().any(|ch| ch == '/' || ch == '\\' || ch == ':' || ch.is_control())
     {
         return Err(UnsafeDownloadPath::UnsafeComponent);
     }
