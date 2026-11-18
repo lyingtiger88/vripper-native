@@ -9,7 +9,7 @@ use crate::scan_links;
 use crate::transport::{HttpTransport, TransportError};
 use crate::viper_api::{ViperApi, ViperApiError};
 use crate::viper_auth::{ViperAuthError, ViperAuthService, ViperCredentials};
-use crate::{calculate_download_directory, post_folder_name};
+use crate::{post_folder_name, safe_calculate_download_directory};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -286,13 +286,22 @@ impl DownloadCoordinator {
                     thread_record.post_count += 1;
                 }
 
-                let base_directory = calculate_download_directory(
+                let base_directory = match safe_calculate_download_directory(
                     &self.options.download_path,
                     &post.forum,
                     &post.thread_title,
                     self.options.forum_subdirectory,
                     self.options.thread_sublocation,
-                );
+                ) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        summary.errors.push(format!(
+                            "unsafe output directory for post {}: {error}",
+                            post.post_id
+                        ));
+                        continue;
+                    }
+                };
                 let folder = post_folder_name(
                     &post.title,
                     post.post_id.max(0) as u64,
