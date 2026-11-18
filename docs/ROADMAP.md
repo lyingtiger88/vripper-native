@@ -178,12 +178,16 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 | Host extraction | 16 initial resolver paths transcribed into Rust; synthetic fixtures added; authorized live-host verification pending |
 | Download lifecycle | Initial scheduler and image lifecycle inspected |
 | Output compatibility | Rust folder/filename primitives and initial tests authored; CI validation pending |
-| Persistence | Rust read-only inspection and safe SQLite online-backup importer plus Flutter import UI implemented; live DatabaseStore/repositories and real legacy fixtures pending |
+| Persistence | Verified Java-copy import is now the active writable catalog; extracted POST/IMAGE/THREAD metadata is persisted into the legacy-compatible SQLite tables while download state is preserved; full repositories/TASK/POST_ACTION and real legacy fixtures remain pending |
 | Network/proxy settings | Flutter section prototype and Rust proxy client builder authored; full request integration and secure storage pending |
 | Rust engine | Workspace, scanner, output helpers, initial host resolvers, XML parser, FFI and proxy-aware queue pipeline implemented; Rust CI checks pass; SQLite persistence pending |
 | Flutter UI | Posts/Threads extraction records and basic list management implemented; Flutter analysis and widget tests pass; full reference parity pending |
 | Platform builds | Windows x86-64 and Android ARM64 CI smoke builds pass; artifact inspection and live workflow acceptance pending |
 | CI and packaging | Rust, Flutter and Windows/Android smoke-build workflows pass; remaining platform matrix and release packaging pending |
+
+## Current persistence milestone
+
+The verified imported Java SQLite copy is now selected as the active native catalog after import and remains the active catalog after restart. New extracted thread/post/image records are written transactionally to the legacy-compatible `THREAD`, `POST` and `IMAGE` tables. Existing download state (`STATUS`, `DONE`, `DOWNLOADED`, `SIZE`, `FILENAME`) is preserved when metadata is refreshed. The separate `NATIVE_CATALOG` overlay remains for UI-specific state until the full repository layer is completed.
 
 ## Architecture decisions
 
