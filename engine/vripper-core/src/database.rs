@@ -326,6 +326,128 @@ pub fn read_legacy_catalog(path: &Path) -> Result<serde_json::Value, DatabaseErr
     Ok(serde_json::json!({"posts": posts, "threads": threads, "images": images}))
 }
 
+    
+/// Persist one extracted thread/post/image set into the writable native copy of
+/// the legacy Java schema. Existing download state is preserved; only metadata
+/// discovered by a fresh lookup is refreshed.
+pub fn persist_extracted_post(
+    path: &Path,
+    thread: &crate::api::ParsedThread,
+    post: &crate::api::ParsedPost,
+    output_path: &Path,
+    folder_name: &str,
+) -> Result<(), DatabaseError> {
+    let mut connection = Connection::open(path)?;
+    connection.busy_timeout(Duration::from_secs(5))?;
+    connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+    let transaction = connection.transaction()?;
+
+    let thread_url = format!("{}/threads/{}", "https://vipergirls.to", thread.thread_id);
+    transaction.execute(
+        r#"INSERT INTO THREAD (THREAD_ID, TITLE, URL, TOTAL)
+           VALUES (?1, ?2, ?3, ?4)
+           ON CONFLICT(THREAD_ID) DO UPDATE SET TITLE=excluded.TITLE, URL=excluded.URL, TOTAL=excluded.TOTAL"#,
+        rusqlite::params![thread.thread_id, thread.title, thread_url, post_count_for_thread(thread)],
+    )?;
+
+    let thread_row_id: i64 = transaction.query_row(
+        "SELECT ID FROM THREAD WHERE THREAD_ID=?1",
+        [thread.thread_id],
+        |row| row.get(0),
+    )?;
+
+    let existing_post_id: Option<i64> = transaction
+        .query_row(
+            "SELECT ID FROM POST WHERE POST_ID=?1",
+            [post.post_id],
+            |row| row.get(0),
+        )
+        .ok();
+
+    let post_row_id = if let Some(id) = existing_post_id {
+        transaction.execute(
+            r#"UPDATE POST SET THREAD_ID=?1, POST_TITLE=?2, THREAD_TITLE=?3, FORUM=?4,
+               URL=?5, TOTAL=?6, TOKEN=?7, RANK=?8 WHERE ID=?9"#,
+            rusqlite::params![
+                thread_row_id,
+                post.title,
+                post.thread_title,
+                post.forum,
+                post.url,
+                post.image_count as i64,
+                post.security_token,
+                post.post_number,
+                id
+            ],
+        )?;
+        id
+    } else {
+        transaction.execute(
+            r#"INSERT INTO POST
+               (POST_ID, THREAD_ID, POST_TITLE, THREAD_TITLE, FORUM, URL, TOTAL, DONE,
+                STATUS, OUTPUT_PATH, FOLDER_NAME, SIZE, DOWNLOADED, TOKEN, RANK)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 'PENDING', ?8, ?9, 0, 0, ?10, ?11)"#,
+            rusqlite::params![
+                post.post_id,
+                thread_row_id,
+                post.title,
+                post.thread_title,
+                post.forum,
+                post.url,
+                post.image_count as i64,
+                output_path.to_string_lossy().as_ref(),
+                folder_name,
+                post.security_token,
+                post.post_number
+            ],
+        )?;
+        transaction.last_insert_rowid()
+    };
+
+    for (index, image) in post.images.iter().enumerate() {
+        let existing_image_id: Option<i64> = transaction
+            .query_row(
+                r#"SELECT ID FROM IMAGE WHERE POST_ID_REF=?1 AND "INDEX"=?2 ORDER BY ID LIMIT 1"#,
+                rusqlite::params![post_row_id, index as i64],
+                |row| row.get(0),
+            )
+            .ok();
+
+        if let Some(image_id) = existing_image_id {
+            transaction.execute(
+                r#"UPDATE IMAGE SET HOST=?1, URL=?2, THUMB_URL=?3, "INDEX"=?4 WHERE ID=?5"#,
+                rusqlite::params![
+                    image.host as u8 as i64,
+                    image.main_url,
+                    image.thumbnail_url,
+                    index as i64,
+                    image_id
+                ],
+            )?;
+        } else {
+            transaction.execute(
+                r#"INSERT INTO IMAGE
+                   (POST_ID_REF, HOST, URL, THUMB_URL, "INDEX", STATUS, FILENAME, DOWNLOADED, SIZE)
+                   VALUES (?1, ?2, ?3, ?4, ?5, 'PENDING', '', 0, 0)"#,
+                rusqlite::params![
+                    post_row_id,
+                    image.host as u8 as i64,
+                    image.main_url,
+                    image.thumbnail_url,
+                    index as i64
+                ],
+            )?;
+        }
+    }
+
+    transaction.commit()?;
+    Ok(())
+}
+
+fn post_count_for_thread(thread: &crate::api::ParsedThread) -> i64 {
+    thread.posts.len() as i64
+}
+
 
 /// Native catalog overlay, independent of the preserved Java tables.
 pub fn native_catalog(path: &Path, replacement: Option<&str>) -> Result<serde_json::Value, DatabaseError> {
