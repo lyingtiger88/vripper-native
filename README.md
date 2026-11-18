@@ -2,7 +2,7 @@
 
 Native-first, 64-bit cross-platform evolution of VRipper using **Rust** for the application engine and **Flutter** for the user interface.
 
-> **Current status:** Native vertical slice implemented; Rust and Flutter CI checks plus Windows x86-64 and Android ARM64 smoke builds pass. Reference parity and platform acceptance remain in progress.  
+> **Current status:** Native vertical slice implemented. Rust unit tests/formatting/Clippy and Flutter analysis/widget tests pass for the current source revision. Windows x86-64 and Android ARM64 smoke builds are being rerun; latest packaging/artifact checks are not yet confirmed. Reference parity and platform acceptance remain in progress.  
 > **Implementation status:** Rust engine, proxy-aware transport, Viper lookup/auth path, queue worker, C ABI coordinator and Flutter queue/settings integration are present. Posts and Threads are populated from extraction results and basic list management is available. This is not yet a release-ready or parity-complete build.
 
 ## Project roadmap
@@ -35,13 +35,13 @@ Legend: [x] completed/documented; [ ] not yet completed. A source inspection che
 - [x] Record Posts table columns, List/Grid selection behavior, Threads/Tasks/Logs interactions, quick filters, grouping and action bar/menu shortcuts.
 - [ ] Capture reference screenshots and interaction recordings for pixel/gesture parity.
 - [x] Inspect source for every one of the 16 registered host resolvers and record selectors, request mutations and URL transformations.
-- [ ] Create authorized HTML fixtures and runtime tests for each host resolver.
+- [x] Add synthetic HTML fixtures and resolver unit coverage for all 16 host types.\n- [ ] Capture authorized reference HTML and compare resolver behavior for each host.
 - [x] Trace exact folderName generation, including optional post ID suffix.
-- [ ] Complete output-path and filename golden vectors.
+- [x] Add deterministic synthetic output-path and filename unit vectors.\n- [ ] Complete Java-vs-native output naming golden comparisons and filesystem acceptance.
 - [ ] Capture reference screenshots and interaction recordings.
 - [x] Map logical POST, IMAGE, THREAD, METADATA, TASK and POST_ACTION entities and observed indexes from Liquibase.
 - [ ] Verify schema/entity drift and migration behavior against a real legacy database.
-- [ ] Complete third-party dependency, asset and license audit.
+- [x] Inventory direct Rust/Flutter dependencies and visible repository assets in `docs/DEPENDENCY_ASSET_LICENSE_AUDIT.md`.\n- [ ] Complete transitive license/SBOM review and platform plugin notice audit.
 - [ ] Capture a runnable reference baseline and sign off the compatibility specification.
 
 **Exit criteria**
