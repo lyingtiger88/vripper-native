@@ -246,12 +246,23 @@ class _HomePageState extends State<HomePage> {
         NativeEngine.instance.destroyCoordinator(handle);
         return;
       }
+      final restoredSnapshot = NativeEngine.instance.queueSnapshot(handle);
+      // Seed the in-memory status index from the durable queue journal. Existing
+      // tasks must remain visible after restart without being re-logged as new
+      // transitions on every application launch.
+      _lastStatuses
+        ..clear()
+        ..addEntries(
+          (restoredSnapshot['items'] as List? ?? [])
+              .whereType<Map>()
+              .where((item) => item['id'] is int)
+              .map((item) => MapEntry(item['id'] as int, item['status'].toString())),
+        );
       setState(() {
         _coordinatorHandle = handle;
         _coordinatorError = null;
-        _queueSnapshot = NativeEngine.instance.queueSnapshot(handle);
+        _queueSnapshot = restoredSnapshot;
       });
-      await _recordQueueChanges();
       _pollQueueEvents(handle);
     } catch (error) {
       if (mounted) setState(() => _coordinatorError = error.toString());
