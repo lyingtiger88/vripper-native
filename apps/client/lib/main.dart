@@ -243,6 +243,7 @@ class _HomePageState extends State<HomePage> {
         _coordinatorError = null;
         _queueSnapshot = NativeEngine.instance.queueSnapshot(handle);
       });
+      await _recordQueueChanges();
       _pollQueueEvents(handle);
     } catch (error) {
       if (mounted) setState(() => _coordinatorError = error.toString());
@@ -637,6 +638,7 @@ class _HomePageState extends State<HomePage> {
                     search: _search,
                     summary: _scanSummary,
                     posts: _posts,
+                    snapshot: _queueSnapshot,
                     selectedKeys: _selectedPostKeys,
                     onAddLinks: _addLinks,
                     onToggleSelection: _togglePostSelection,
@@ -824,12 +826,14 @@ class _ToolbarButton extends StatelessWidget {
 class PostsTab extends StatelessWidget {
   const PostsTab({
     required this.search, required this.summary, required this.posts,
+    this.snapshot = const {},
     required this.selectedKeys, required this.onAddLinks,
     required this.onToggleSelection, required this.onRemoveSelected,
     required this.onClear, required this.onCopyUrl,
   });
   final TextEditingController search;
   final String summary;
+  final Map<String, dynamic> snapshot;
   final List<Map<String, dynamic>> posts;
   final Set<String> selectedKeys;
   final VoidCallback onAddLinks;
@@ -919,7 +923,23 @@ class PostsTab extends StatelessWidget {
                     onChanged: (value) => onToggleSelection(key, value ?? false),
                   ),
                   title: Text((post['title'] ?? 'Untitled post').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Builder(builder: (_) {
+                        final ids = (post['queue_job_ids'] as List? ?? []).toSet();
+                        final jobs = (snapshot['items'] as List? ?? []).whereType<Map>().where((j) => ids.contains(j['id'])).toList();
+                        final total = post['image_count'] as int? ?? 0;
+                        final done = jobs.where((j) => j['status'] == 'FINISHED').length;
+                        final fraction = total > 0 ? (done / total).clamp(0.0, 1.0).toDouble() : 0.0;
+                        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          LinearProgressIndicator(value: fraction),
+                          Text('$done / $total images • ${(fraction * 100).round()}%', style: const TextStyle(fontSize: 10)),
+                        ]);
+                      }),
+                    ],
+                  ),
                   trailing: IconButton(
                     tooltip: 'Copy post URL',
                     visualDensity: VisualDensity.compact,
@@ -1075,7 +1095,7 @@ class TasksTab extends StatelessWidget {
                     SizedBox(
                       width: 120,
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        LinearProgressIndicator(value: status == 'FINISHED' ? 1.0 : (expected is num && expected > 0 && bytes is num ? (bytes / expected).clamp(0.0, 1.0).toDouble() : (status == 'DOWNLOADING' ? null : 0.0))),
+                        LinearProgressIndicator(value: status == 'FINISHED' ? 1.0 : (expected is num && expected > 0 && bytes is num ? (bytes / expected).clamp(0.0, 1.0).toDouble() : (status == 'RUNNING' ? null : 0.0))),
                         Text(expected == null ? bytes.toString() : '$bytes / $expected', style: const TextStyle(fontSize: 10, color: _muted)),
                       ]),
                     ),
