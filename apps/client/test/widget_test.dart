@@ -118,4 +118,58 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+  testWidgets('post progress includes completed and partially downloaded images', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 900,
+          height: 500,
+          child: PostsTab(
+            search: TextEditingController(),
+            summary: 'Progress fixture',
+            posts: [
+              {
+                'thread_id': 1,
+                'thread_title': 'Thread',
+                'post_id': 2,
+                'post_number': 1,
+                'title': 'Post progress',
+                'image_count': 2,
+                'queue_job_ids': [7, 8],
+                'url': 'https://example.invalid/post/2',
+                'hosts': [],
+              },
+            ],
+            snapshot: {
+              'items': [
+                {'id': 7, 'status': 'FINISHED', 'bytes_written': 100, 'expected_bytes': 100},
+                {'id': 8, 'status': 'RUNNING', 'bytes_written': 50, 'expected_bytes': 100},
+              ],
+            },
+            selectedKeys: const {},
+            onAddLinks: () {},
+            onToggleSelection: (_, __) {},
+            onRemoveSelected: () {},
+            onClear: () {},
+            onCopyUrl: (_) {},
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.text('1 / 2 images • 75%'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('logs tab restores supplied persisted entries', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LogsTab(logs: const ['Task 1 • FINISHED', 'Task 2 • STOPPED']),
+      ),
+    ));
+
+    expect(find.text('Task 1 • FINISHED'), findsOneWidget);
+    expect(find.text('Task 2 • STOPPED'), findsOneWidget);
+  });
+
 }
