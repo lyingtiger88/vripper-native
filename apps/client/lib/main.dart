@@ -131,6 +131,7 @@ class _HomePageState extends State<HomePage> {
       _appThemeMode.value = switch (preferences.getString('vripper.theme.mode')) { 'dark' => ThemeMode.dark, 'system' => ThemeMode.system, _ => ThemeMode.light };
       _downloadOptions = Map<String, dynamic>.from(jsonDecode(preferences.getString('vripper.download.options') ?? '{}') as Map);
       _logs = preferences.getStringList('vripper.logs') ?? [];
+      if (_logs.length > _maxLogEntries) _logs = _logs.sublist(_logs.length - _maxLogEntries);
       final savedPosts = preferences.getString('vripper.posts');
       final savedThreads = preferences.getString('vripper.threads');
       if (savedPosts != null) {
@@ -1699,13 +1700,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             const SizedBox(height: 10),
             TextField(controller: _bypass, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'Bypass list', hintText: 'One host or domain per line', border: OutlineInputBorder())),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Connection test is not yet wired to the coordinator.')),
-              ),
-              icon: const Icon(Icons.network_check),
-              label: const Text('Test connection'),
-            ),
+            const Text('Connection test is not available yet; the selected proxy configuration is applied when settings are saved.', style: TextStyle(fontSize: 11, color: _muted)),
           ],
           const SizedBox(height: 14),
           const Text(
