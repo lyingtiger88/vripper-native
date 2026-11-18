@@ -199,4 +199,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('tasks filter and expose all pending movement actions', (tester) async {
+    String? movement;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: TasksTab(
+      snapshot: {'items': [
+        {'id': 1, 'host': 'Test', 'status': 'PENDING', 'filename': 'pending.jpg'},
+        {'id': 2, 'host': 'Test', 'status': 'ERROR', 'filename': 'failed.jpg'},
+      ]},
+      onClear: () {}, onStop: (_) {}, onRetry: (_) {}, onMove: (_, value) => movement = value,
+    ))));
+    await tester.tap(find.byTooltip('Move task'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move to bottom'));
+    await tester.pumpAndSettle();
+    expect(movement, 'bottom');
+    await tester.enterText(find.byType(TextField), 'failed');
+    await tester.pump();
+    expect(find.text('pending.jpg'), findsNothing);
+    expect(find.text('failed.jpg'), findsOneWidget);
+    expect(find.byTooltip('Retry task'), findsOneWidget);
+  });
+
+  testWidgets('logs can be filtered to errors', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: LogsTab(
+      logs: ['Task 1 FINISHED', 'Task 2 ERROR'],
+    ))));
+    await tester.tap(find.text('Errors only'));
+    await tester.pumpAndSettle();
+    expect(find.text('Task 1 FINISHED'), findsNothing);
+    expect(find.text('Task 2 ERROR'), findsOneWidget);
+  });
+
 }
